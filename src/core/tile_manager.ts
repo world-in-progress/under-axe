@@ -1,8 +1,14 @@
 import { mat4, vec3 } from 'gl-matrix'
 import { Map } from 'mapbox-gl'
 import { Frustum } from '../geometry/frustum'
+import { Aabb } from '../geometry/aabb'
+import { BaseTile } from '../util/tile_id'
 import MercatorCoordinate from '../util/mercator_coordinate'
+import { tileAABB } from '../util/tile_util'
 
+
+/////// Const //////////////////////////////////
+const NUM_WORLD_COPIES = 3
 const defaultConfig = {
     maxZoom: 24,
     minZoom: 0,
@@ -10,11 +16,31 @@ const defaultConfig = {
 }
 type TileManagerConfig = Partial<typeof defaultConfig>
 
+type QuadTileNode = {
+    wrap: number;
+    x: number;
+    y: number;
+    z: number;
+    aabb: Aabb;
+    maxAltitude: number;
+    minAltitude: number;
+    fullyVisible: boolean;
+    shouldSplit?: boolean;
+};
+type CoveringTileNode {
+    x: number;
+    y: number;
+    z: number;
+    distance: number; // distance to camera
+}
+
+
 export default class TileManager {
     // Base
     type: 'custom' = 'custom'
     id: string = 'tile_manager'
     renderingMode: '2d' | '3d' = '3d'
+    log: boolean = true
 
     // Options
     minzoom: number
@@ -85,7 +111,8 @@ export default class TileManager {
     }
 
     coveringTile(): Array<any> {
-        /////// 01.基础参数 //////////////////////////////////
+
+        /////// 01.Basic variables //////////////////////////////////
         const transform = this._map.transform
         let mapZoom = transform.zoom
         if (mapZoom < this.minzoom) return []
@@ -93,28 +120,28 @@ export default class TileManager {
         const minTileZoom = 0
         const maxTileZoom = Math.floor(transform.zoom)
         const worldSize_wd = 1 << maxTileZoom
+        const elevationMode = this.elevationMode
 
-        console.log(worldSize_wd)
         let minElevation = 0,
             maxElevation = 0
-        if (this.elevationMode) {
+        if (elevationMode) {
             maxElevation = 1000 * 6000 // 6000 km, less than 6371 km
             minElevation = -maxElevation
         }
 
-        /////// 02.地图中心 //////////////////////////////////
+        /////// 02.Map Center //////////////////////////////////
         // lnglat-space | webmercator-space |  WD-space
         const mapCenter_lnglat = [transform._center.lng, transform._center.lat]
-        console.log("mapCenter_lnglat", mapCenter_lnglat)
         const mapCenter_wmc = MercatorCoordinate.fromLngLat(mapCenter_lnglat)
-        console.log("mapCenter_wmc", mapCenter_wmc)
         const mapCenter_wd = [
             mapCenter_wmc[0] * worldSize_wd,
             mapCenter_wmc[1] * worldSize_wd,
             0.0,
         ]
+        const mapCenterAltitude = 0.0 // temp!
 
-        /////// 03.高程转换 //////////////////////////////////
+
+        /////// 03.Z-Axis //////////////////////////////////
         const meter2wmcz = MercatorCoordinate.mercatorZfromAltitude(
             1,
             mapCenter_lnglat[1],
@@ -122,7 +149,7 @@ export default class TileManager {
         const wmcz2meter = 1.0 / meter2wmcz // wmc-z to meter
         const meter2wdz = worldSize_wd * meter2wmcz // meter -> WD-z
 
-        /////// 04.相机位置 //////////////////////////////////
+        /////// 04.Camera-Pos //////////////////////////////////
         const cameraPos_wmc = transform.getFreeCameraOptions().position
         if (!cameraPos_wmc) return []
         const cameraAltitude = cameraPos_wmc.z * wmcz2meter
@@ -131,8 +158,9 @@ export default class TileManager {
             worldSize_wd * cameraPos_wmc.y,
             cameraAltitude,
         ]
+        const cameraHeight = (cameraAltitude - mapCenterAltitude) * meter2wdz; // in pixel coordinates.
 
-        /////// 05.视锥体  //////////////////////////////////
+        /////// 05.Frustum  //////////////////////////////////
         const { invProjMatrix } = getMatrices(transform, -100.0)!
         this.frustum = Frustum.fromInvViewProjection(
             invProjMatrix,
@@ -141,20 +169,125 @@ export default class TileManager {
         )
 
         if (!invProjMatrix) {
-            console.log('🤗挑战不可能！')
+            console.warn('🤗挑战不可能！')
             return []
         }
 
-        if (true) {
+        if (this.log) {
             console.log("===== in WD-Space =====")
             console.log(mapCenter_wd)
             console.log(cameraPos_wd)
             console.log(this.frustum)
-            
+        }
+
+        /////// 06.Tile-Picking //////////////////////////////////
+        const stack: QuadTileNode[] = [];
+        let coveringTilesList: CoveringTileNode[] = [];
+        if (transform.renderWorldCopies) {
+            for (let i = 1; i <= NUM_WORLD_COPIES; i++) {
+                stack.push(rootTileNode(-i));
+                stack.push(rootTileNode(i));
+            }
+        }
+        stack.push(rootTileNode(0))
+
+        while (stack.length > 0) {
+
+            const node = stack.pop()!;
+            const x = node.x;
+            const y = node.y;
+            const z = node.z;
+            let fullyVisible = node.fullyVisible;
+
+            // Step 1: 进行相交检测, 看节点是否完全可见
+            if (!fullyVisible) {
+
+                const intersect = this.elevationMode ?
+                    node.aabb.intersects(this.frustum) :
+                    node.aabb.intersectsFlat(this.frustum)
+
+                if (intersect === 0) continue // 该瓦片完全不可见，放弃
+
+                fullyVisible = intersect === 2 // Aabb完全包含于frustum
+            }
+
+            // Step 2: 如果已到 maxTileZoom， 或瓦片距相机太远，不再细分，收集此瓦片
+            if (z === maxTileZoom || !shouldSplit(node)) {
+
+                if (this.minzoom > z) continue;
+
+                // const dx = centerPoint[0] - ((0.5 + x + (it.wrap << it.zoom)) * (1 << (z - it.zoom)));
+                const dx = mapCenter_wd[0] - 0.5 - x - (node.wrap << z);
+                const dy = mapCenter_wd[1] - 0.5 - y;
+
+                const cvTileNode = {
+                    x, y, z,
+                    distance: Math.sqrt(dx * dx + dy * dy),
+                } as CoveringTileNode
+
+                coveringTilesList.push(cvTileNode)
+
+                continue
+            }
+            // Step 2: 
+            for (let i = 0; i < 4; i++) {
+                /*   ————————————
+                    |  0  |  1  |
+                    ————————————
+                    |  2  |  3  |
+                    ————————————  */
+                const childX = (x << 1) + (i % 2);
+                const childY = (y << 1) + (i >> 1);
+
+                const aabb = node.aabb.quadrant(i)
+                const child: QuadTileNode = {
+                    x: childX,
+                    y: childY,
+                    z: z + 1,
+                    aabb: aabb,
+                    maxAltitude: maxElevation,
+                    minAltitude: minElevation,
+                    fullyVisible: fullyVisible,
+                    shouldSplit: undefined,
+                    wrap: node.wrap,
+                }
+
+                stack.push(child);
+            }
 
         }
 
+        // sort by distance
+        const cover = coveringTilesList.sort((a, b) => a.distance - b.distance)
 
+        return cover
+
+
+        // local helper ////////////////////////////////////
+        function rootTileNode(warp: number): QuadTileNode {
+            return {
+                x: 0,
+                y: 0,
+                z: 0,
+                wrap: warp,
+                aabb: tileAABB(worldSize_wd, 0, 0, 0, 0, minElevation, maxElevation),
+                maxAltitude: minElevation,
+                minAltitude: maxElevation,
+                fullyVisible: false,
+            } as QuadTileNode
+        }
+
+        function shouldSplit(node: QuadTileNode): boolean {
+            if (node.z < minTileZoom) return true
+            if (node.z >= maxTileZoom) return false
+            if (node.shouldSplit != null) return node.shouldSplit
+
+            const dx = node.aabb.distanceX(cameraPos_wd);
+            const dy = node.aabb.distanceY(cameraPos_wd);
+            let dz = cameraHeight
+            if (elevationMode) dz = node.aabb.distanceZ(cameraPos_wd)
+            
+        }
 
         return []
     }

@@ -1,5 +1,11 @@
 import { mat4 } from 'gl-matrix'
 
+export interface BaseTile {
+    z: number
+    x: number
+    y: number
+}
+
 export class BaseTileID {
     z: number
     x: number

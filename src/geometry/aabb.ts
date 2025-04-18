@@ -1,7 +1,7 @@
 import { mat4, vec3 } from 'gl-matrix'
 import { type Frustum, intersectsFrustum } from './frustum'
 
-export default class Aabb {
+export class Aabb {
     center: vec3
     min: vec3
     max: vec3
@@ -87,7 +87,12 @@ export default class Aabb {
     }
 
     /**
-     * 将Aabb划分4象限， index 0 --> 左上， 1 --> 右上， 2 --> 左下， 3 --> 右下
+     * 将Aabb划分4象限
+     *   ————————————
+     *  |  0  |  1  |
+     *  ————————————
+     *  |  2  |  3  |
+     *  ———————————— 
      * @param {number} index 0, 1, 2, 3
      * @returns {Aabb}
      */
@@ -187,7 +192,7 @@ export default class Aabb {
     /**
      * 判断是否相交于传入的Frustum， 先用判断是否相交于Frustum的Aabb，再判断是部分相交or完全相交
      * @param {Frustum} frustum
-     * @returns {number} **0** 不相交, **1** 部分相交, **2** aabb包含于Frustum内部
+     * @returns {number} **0** 不相交, **1** 部分相交, **2** aabb完全包含于Frustum内部
      */
     intersects(frustum: Frustum): number {
         if (!this.intersectsAabb(frustum.bounds)) return 0
@@ -198,7 +203,7 @@ export default class Aabb {
     /**
      * 判断是否相交于传入的Frustum， 仅考虑XY平面
      * @param frustum
-     * @returns
+     * @returns {number} **0** 不相交, **1** 部分相交, **2** aabb完全包含于Frustum内部
      */
     intersectsFlat(frustum: Frustum): number {
         if (!this.intersectsAabb(frustum.bounds)) {
@@ -249,4 +254,32 @@ export default class Aabb {
             Math.max(Math.min(this.max[2], point[2]), this.min[2]),
         ]
     }
+}
+
+
+
+
+
+type TileCoord = {
+    x: number,
+    y: number,
+    z: number
+}
+function tileAABB({ tileXYZ, minh, maxh, worldSize_wd }: {
+    tileXYZ: TileCoord,
+    minh: number,
+    maxh: number,
+    worldSize_wd: number
+}): Aabb {
+    const { x, y, z } = tileXYZ;
+    const s = 1.0 / Math.pow(2, z);
+
+    const [minx, miny, maxx, maxy] = [
+        x * s,
+        y * s,
+        (x + 1) * s,
+        (y + 1) * s];
+
+    // NT-Space AABB
+    return new Aabb([minx * worldSize_wd, miny * worldSize_wd, minh], [maxx * worldSize_wd, maxy * worldSize_wd, maxh]);
 }

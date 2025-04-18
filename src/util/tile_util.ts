@@ -1,5 +1,5 @@
-// import { Polygon } from "geojson"
-import { Aabb } from './intersection'
+
+import { Aabb } from '../geometry/aabb'
 import MercatorCoordinate from './mercator_coordinate'
 
 const MAX_ZOOM = 28
@@ -52,22 +52,22 @@ function getBboxZoom(bbox: Array<number>): number {
     return MAX_ZOOM
 }
 
-// function tileToPolygonFeature(tile: Array<number>): Polygon {
+function tileToPolygonFeature(tile: Array<number>): GeoJSON.Polygon {
 
-//     const bbox = tileToBBox(tile)
-//     const poly: Polygon = {
+    const bbox = tileToBBox(tile)
+    const poly: GeoJSON.Polygon = {
 
-//         type: 'Polygon',
-//         coordinates: [[
-//             [bbox[0], bbox[3]],
-//             [bbox[0], bbox[1]],
-//             [bbox[2], bbox[1]],
-//             [bbox[2], bbox[3]],
-//         ]]
-//     }
+        type: 'Polygon',
+        coordinates: [[
+            [bbox[0], bbox[3]],
+            [bbox[0], bbox[1]],
+            [bbox[2], bbox[1]],
+            [bbox[2], bbox[3]],
+        ]]
+    }
 
-//     return poly
-// }
+    return poly
+}
 
 function pointToTile(lon: number, lat: number, z: number) {
     const tile = pointToTileFraction(lon, lat, z)
@@ -275,7 +275,7 @@ export function tileAABB(
 export {
     tile2lon,
     tile2lat,
-    // tileToPolygonFeature,
+    tileToPolygonFeature,
     tileToBBox,
     getChildren,
     getParent,
