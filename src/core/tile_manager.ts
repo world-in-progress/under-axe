@@ -24,18 +24,17 @@ export default class TileManager implements CustomLayerInterface {
 
     render(_: WebGL2RenderingContext, __: Array<number>) {
         const transform = this._map.transform
-        const invVPMatrix = transform.invProjMatrix // note: 这里估计要用自己的matrix
+        // const invVPMatrix = transform.invProjMatrix // note: 这里估计要用自己的matrix
+        const { mercatorMatrix, projMatrix, invProjMatrix } = getMatrices(transform, -100.0)!
         const worldSize = transform.worldSize
-        // 默认mapboxgljs就是floor的，除非在初始化map的时候特殊设置，这里就不考虑Round了 --- transform.ts 807 coveringZoomLevel
+        // 默认是floor的，除非在初始化map的时候特殊设置，这里就不考虑Round了 --- transform.ts 807 coveringZoomLevel
         const highestTileZoom = Math.floor(transform.zoom)
         this.frustum = Frustum.fromInvViewProjection(
-            invVPMatrix,
+            invProjMatrix,
             worldSize,
             highestTileZoom,
         )
-
-        console.log('custom frustum', this.frustum)
-
+        
         // const transform = this._map.transform
         // const matrices = getMatrices(transform)
         // const invProjMatrix = matrices?.invProjMatrix
