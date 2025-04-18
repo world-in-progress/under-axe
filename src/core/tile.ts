@@ -1,4 +1,4 @@
-import { BoundingBox } from "./bounding_box"
+import { BoundingBox } from './bounding_box'
 
 export class Tile {
     x: number
@@ -43,7 +43,7 @@ export class Tile {
 
         const z = getBboxZoom(tileBox)
         if (z === 0) return new Tile()
-        
+
         const x = tileBox[0] >>> (32 - z)
         const y = tileBox[1] >>> (32 - z)
         return new Tile(x, y, z)
@@ -58,7 +58,7 @@ export class Tile {
             new Tile(this.x * 2, this.y * 2, this.z + 1),
             new Tile(this.x * 2 + 1, this.y * 2, this.z + 1),
             new Tile(this.x * 2 + 1, this.y * 2 + 1, this.z + 1),
-            new Tile(this.x * 2, this.y * 2 + 1, this.z + 1)
+            new Tile(this.x * 2, this.y * 2 + 1, this.z + 1),
         ]
     }
 
@@ -91,11 +91,12 @@ const DEG_TO_RAD = Math.PI / 180.0
 // const RAD_TO_DEG = 180.0 / Math.PI
 
 function getBboxZoom(bbox: Array<number>): number {
-
     for (let z = 0; z < MAX_ZOOM; z++) {
         const mask = 1 << (32 - (z + 1))
-        if (((bbox[0] & mask) !== (bbox[2] & mask)) || ((bbox[1] & mask) !== (bbox[3] & mask))) {
-
+        if (
+            (bbox[0] & mask) !== (bbox[2] & mask) ||
+            (bbox[1] & mask) !== (bbox[3] & mask)
+        ) {
             return z
         }
     }
@@ -104,14 +105,14 @@ function getBboxZoom(bbox: Array<number>): number {
 }
 
 function pointToTileFraction(lon: number, lat: number, z: number) {
-
     const sin = Math.sin(lat * DEG_TO_RAD)
     const z2 = Math.pow(2.0, z)
 
     let x = z2 * (lon / 360.0 + 0.5)
-    const y = z2 * (0.5 - 0.25 * Math.log((1.0 + sin) / (1.0 - sin)) / Math.PI)
+    const y =
+        z2 * (0.5 - (0.25 * Math.log((1.0 + sin) / (1.0 - sin))) / Math.PI)
 
-    x = x % (z2)
+    x = x % z2
     if (x < 0) x = x + z2
     return [x, y, z]
 }
