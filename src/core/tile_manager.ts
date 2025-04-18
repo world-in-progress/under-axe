@@ -27,7 +27,7 @@ type QuadTileNode = {
     fullyVisible: boolean;
     shouldSplit?: boolean;
 };
-type CoveringTileNode {
+type CoveringTileNode = {
     x: number;
     y: number;
     z: number;
@@ -40,7 +40,7 @@ export default class TileManager {
     type: 'custom' = 'custom'
     id: string = 'tile_manager'
     renderingMode: '2d' | '3d' = '3d'
-    log: boolean = true
+    log: boolean = false
 
     // Options
     minzoom: number
@@ -67,7 +67,7 @@ export default class TileManager {
     render(_: WebGL2RenderingContext, __: Array<number>) {
 
         const tiles = this.coveringTile()
-
+        console.log(tiles)
         // const z = Math.max(
         //     0,
         //     Math.floor(
@@ -183,12 +183,12 @@ export default class TileManager {
         /////// 06.Tile-Picking //////////////////////////////////
         const stack: QuadTileNode[] = [];
         let coveringTilesList: CoveringTileNode[] = [];
-        if (transform.renderWorldCopies) {
-            for (let i = 1; i <= NUM_WORLD_COPIES; i++) {
-                stack.push(rootTileNode(-i));
-                stack.push(rootTileNode(i));
-            }
-        }
+        // if (transform.renderWorldCopies) {
+        //     for (let i = 1; i <= NUM_WORLD_COPIES; i++) {
+        //         stack.push(rootTileNode(-i));
+        //         stack.push(rootTileNode(i));
+        //     }
+        // }
         stack.push(rootTileNode(0))
 
         while (stack.length > 0) {
@@ -212,7 +212,7 @@ export default class TileManager {
             }
 
             // Step 2: 如果已到 maxTileZoom， 或瓦片距相机太远，不再细分，收集此瓦片
-            if (z === maxTileZoom || !shouldSplit(node)) {
+            if (z === maxTileZoom || !shouldNodeSplit(node)) {
 
                 if (this.minzoom > z) continue;
 
@@ -258,7 +258,9 @@ export default class TileManager {
         }
 
         // sort by distance
-        const cover = coveringTilesList.sort((a, b) => a.distance - b.distance)
+        const cover = coveringTilesList.sort((a, b) => a.distance - b.distance).map((n)=>{
+            return `${n.z}-${n.x}-${n.y}`
+        })
 
         return cover
 
@@ -277,19 +279,47 @@ export default class TileManager {
             } as QuadTileNode
         }
 
-        function shouldSplit(node: QuadTileNode): boolean {
+        function shouldNodeSplit(node: QuadTileNode): boolean {
             if (node.z < minTileZoom) return true
             if (node.z >= maxTileZoom) return false
             if (node.shouldSplit != null) return node.shouldSplit
 
-            const dx = node.aabb.distanceX(cameraPos_wd);
-            const dy = node.aabb.distanceY(cameraPos_wd);
-            let dz = cameraHeight
-            if (elevationMode) dz = node.aabb.distanceZ(cameraPos_wd)
-            
-        }
 
-        return []
+            const camera2corner: vec3 = [0, 0, 0];
+            const closestCornerPoint = node.aabb.closestPoint(mapCenter_wd as vec3)
+            vec3.sub(camera2corner, closestCornerPoint, cameraPos_wd as vec3)
+            camera2corner[2] = elevationMode ? camera2corner[2] * meter2wdz : cameraHeight
+
+            const closestDistance = vec3.dot(camera2corner, transform._camera.forward())
+
+            let distToSplit = (1 << maxTileZoom - node.z) // default
+            // let distToSplit = (1 << maxTileZoom - node.z - 1) // lazy mode
+            // let distToSplit = (1 << maxTileZoom - node.z + 1) // hurry mode
+
+            if (closestDistance < distToSplit) {
+                return true;
+            }
+            // Border case: with tilt of 85 degrees, center could be outside max zoom distance, due to scale.
+            // Ensure max zoom tiles over center.
+            const closestPointToCenter = node.aabb.closestPoint(mapCenter_wd as vec3);
+            return (closestPointToCenter[0] === mapCenter_wd[0] && closestPointToCenter[1] === mapCenter_wd[1]);
+
+            // const closestElevation = Math.abs(camera2corner[2])
+
+            // for (const corner of corners) {
+            //     // distanceXyz: 由相机指向瓦片中心的向量
+            //     vec3.sub(camera2corner, corner, cameraPos_wd as vec3);
+
+            //     camera2corner[2] = elevationMode ? camera2corner[2] * meter2wdz : cameraHeight
+
+            //     // 由相机指向瓦片中心的向量，和相机的视线方向做点积，得到相机到瓦片中心的距离在相机视线方向上的投影距离
+            //     const dist = vec3.dot(camera2corner, transform._camera.forward());
+            //     if (dist < closestDistance) {
+            //         closestDistance = dist;
+            //         closestElevation = Math.abs(camera2corner[2]);
+            //     }
+            // }
+        }
     }
 }
 // Helpers //////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -1,5 +1,5 @@
 import { mat4, vec3, vec4 } from 'gl-matrix'
-import Aabb from './aabb'
+import { Aabb } from './aabb'
 
 type FrustumPoints = [vec3, vec3, vec3, vec3, vec3, vec3, vec3, vec3]
 type FrustumPlanes = [vec4, vec4, vec4, vec4, vec4, vec4]
