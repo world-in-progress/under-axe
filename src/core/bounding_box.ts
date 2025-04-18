@@ -3,7 +3,7 @@ export class BoundingBox {
         public minX: number,
         public minY: number,
         public maxX: number,
-        public maxY: number
+        public maxY: number,
     ) {}
 
     get width() {
@@ -55,13 +55,10 @@ export class BoundingBox {
 
     contains(x: number, y: number) {
         return (
-            x >= this.minX &&
-            x <= this.maxX &&
-            y >= this.minY &&
-            y <= this.maxY
+            x >= this.minX && x <= this.maxX && y >= this.minY && y <= this.maxY
         )
     }
-    
+
     containsBox(box: BoundingBox) {
         return (
             this.contains(box.minX, box.minY) &&

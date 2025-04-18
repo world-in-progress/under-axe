@@ -15,7 +15,8 @@ const canvas2d = document.createElement('canvas')
 canvas2d.id = 'canvas2d'
 document.body.appendChild(canvas2d)
 
-mapboxgl.accessToken = 'pk.eyJ1IjoieWNzb2t1IiwiYSI6ImNrenozdWdodDAza3EzY3BtdHh4cm5pangifQ.ZigfygDi2bK4HXY1pWh-wg'
+mapboxgl.accessToken =
+    'pk.eyJ1IjoieWNzb2t1IiwiYSI6ImNrenozdWdodDAza3EzY3BtdHh4cm5pangifQ.ZigfygDi2bK4HXY1pWh-wg'
 
 const map = new mapboxgl.Map({
     style: 'mapbox://styles/ycsoku/cm3zhjxbs00pa01sd6hx7grtr',
@@ -25,11 +26,11 @@ const map = new mapboxgl.Map({
     container: 'map',
     antialias: true,
     maxZoom: 22,
-    zoom: 11
-
+    zoom: 11,
 })
 
 map.on('load', () => {
+    map.showTileBoundaries = true
     const tileManager = new TileManager(map)
     map.addLayer(tileManager)
 })
