@@ -1,45 +1,46 @@
 import { mat4, vec3 } from 'gl-matrix'
-import { Map, CustomLayerInterface } from 'mapbox-gl'
+import { Map } from 'mapbox-gl'
 import { Frustum } from '../geometry/frustum'
+import MercatorCoordinate from '../util/mercator_coordinate'
 
-export default class TileManager implements CustomLayerInterface {
-    // Map handler
-    private _map: Map
+const defaultConfig = {
+    maxZoom: 24,
+    minZoom: 0,
+    elevationMode: false,
+}
+type TileManagerConfig = Partial<typeof defaultConfig>
 
-    // Base configuration
+export default class TileManager {
+    // Base
     type: 'custom' = 'custom'
     id: string = 'tile_manager'
     renderingMode: '2d' | '3d' = '3d'
 
-    // !
+    // Options
+    minzoom: number
+    maxzoom: number
+    elevationMode: Boolean
+
+    // Core-Properties
+    private _map: Map
     frustum!: Frustum
 
-    constructor(map: Map) {
+    constructor(map: Map, config: TileManagerConfig) {
         this._map = map
+
+        const options = Object.assign({}, defaultConfig, config)
+        this.elevationMode = options.elevationMode
+        this.minzoom = options.minZoom
+        this.maxzoom = options.maxZoom
     }
 
     onAdd(_: Map, __: WebGL2RenderingContext) {
-        console.log('TileManager added', this._map)
+        console.log('TileManager added !', this._map)
     }
 
     render(_: WebGL2RenderingContext, __: Array<number>) {
-        const transform = this._map.transform
-        // const invVPMatrix = transform.invProjMatrix // note: 这里估计要用自己的matrix
-        const { mercatorMatrix, projMatrix, invProjMatrix } = getMatrices(transform, -100.0)!
-        const worldSize = transform.worldSize
-        // 默认是floor的，除非在初始化map的时候特殊设置，这里就不考虑Round了 --- transform.ts 807 coveringZoomLevel
-        const highestTileZoom = Math.floor(transform.zoom)
-        this.frustum = Frustum.fromInvViewProjection(
-            invProjMatrix,
-            worldSize,
-            highestTileZoom,
-        )
-        
-        // const transform = this._map.transform
-        // const matrices = getMatrices(transform)
-        // const invProjMatrix = matrices?.invProjMatrix
 
-        // if (!invProjMatrix) return
+        const tiles = this.coveringTile()
 
         // const z = Math.max(
         //     0,
@@ -81,6 +82,81 @@ export default class TileManager implements CustomLayerInterface {
 
         // const maxRange = 100
         // const minRange = -maxRange
+    }
+
+    coveringTile(): Array<any> {
+        /////// 01.基础参数 //////////////////////////////////
+        const transform = this._map.transform
+        let mapZoom = transform.zoom
+        if (mapZoom < this.minzoom) return []
+        if (mapZoom > this.maxzoom) mapZoom = this.maxzoom
+        const minTileZoom = 0
+        const maxTileZoom = Math.floor(transform.zoom)
+        const worldSize_wd = 1 << maxTileZoom
+
+        console.log(worldSize_wd)
+        let minElevation = 0,
+            maxElevation = 0
+        if (this.elevationMode) {
+            maxElevation = 1000 * 6000 // 6000 km, less than 6371 km
+            minElevation = -maxElevation
+        }
+
+        /////// 02.地图中心 //////////////////////////////////
+        // lnglat-space | webmercator-space |  WD-space
+        const mapCenter_lnglat = [transform._center.lng, transform._center.lat]
+        console.log("mapCenter_lnglat", mapCenter_lnglat)
+        const mapCenter_wmc = MercatorCoordinate.fromLngLat(mapCenter_lnglat)
+        console.log("mapCenter_wmc", mapCenter_wmc)
+        const mapCenter_wd = [
+            mapCenter_wmc[0] * worldSize_wd,
+            mapCenter_wmc[1] * worldSize_wd,
+            0.0,
+        ]
+
+        /////// 03.高程转换 //////////////////////////////////
+        const meter2wmcz = MercatorCoordinate.mercatorZfromAltitude(
+            1,
+            mapCenter_lnglat[1],
+        ) // meter to wmc-z
+        const wmcz2meter = 1.0 / meter2wmcz // wmc-z to meter
+        const meter2wdz = worldSize_wd * meter2wmcz // meter -> WD-z
+
+        /////// 04.相机位置 //////////////////////////////////
+        const cameraPos_wmc = transform.getFreeCameraOptions().position
+        if (!cameraPos_wmc) return []
+        const cameraAltitude = cameraPos_wmc.z * wmcz2meter
+        const cameraPos_wd = [
+            worldSize_wd * cameraPos_wmc.x,
+            worldSize_wd * cameraPos_wmc.y,
+            cameraAltitude,
+        ]
+
+        /////// 05.视锥体  //////////////////////////////////
+        const { invProjMatrix } = getMatrices(transform, -100.0)!
+        this.frustum = Frustum.fromInvViewProjection(
+            invProjMatrix,
+            transform.worldSize,
+            maxTileZoom,
+        )
+
+        if (!invProjMatrix) {
+            console.log('🤗挑战不可能！')
+            return []
+        }
+
+        if (true) {
+            console.log("===== in WD-Space =====")
+            console.log(mapCenter_wd)
+            console.log(cameraPos_wd)
+            console.log(this.frustum)
+            
+
+        }
+
+
+
+        return []
     }
 }
 // Helpers //////////////////////////////////////////////////////////////////////////////////////////////////////
