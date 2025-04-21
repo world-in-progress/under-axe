@@ -1,5 +1,12 @@
 import { mat4 } from 'gl-matrix'
 
+export interface BaseTile {
+    z: number
+    x: number
+    y: number
+    wrap: number
+}
+
 export class BaseTileID {
     z: number
     x: number
@@ -45,20 +52,10 @@ export class CanonicalTileID {
         const quadkey = getQuadkey(this.z, this.x, this.y)
 
         return urls[(this.x + this.y) % urls.length]
-            .replace(
-                '{prefix}',
-                (this.x % 16).toString(16) + (this.y % 16).toString(16),
-            )
+            .replace('{prefix}', (this.x % 16).toString(16) + (this.y % 16).toString(16))
             .replace(/{z}/g, String(this.z))
             .replace(/{x}/g, String(this.x))
-            .replace(
-                /{y}/g,
-                String(
-                    scheme === 'tms'
-                        ? Math.pow(2, this.z) - this.y - 1
-                        : this.y,
-                ),
-            )
+            .replace(/{y}/g, String(scheme === 'tms' ? Math.pow(2, this.z) - this.y - 1 : this.y))
             .replace('{quadkey}', quadkey)
             .replace('{bbox-epsg-3857}', bbox)
     }
@@ -76,13 +73,7 @@ export class UnwrappedTileID {
     constructor(wrap: number, canonical: CanonicalTileID) {
         this.wrap = wrap
         this.canonical = canonical
-        this.key = calculateKey(
-            wrap,
-            canonical.z,
-            canonical.z,
-            canonical.x,
-            canonical.y,
-        )
+        this.key = calculateKey(wrap, canonical.z, canonical.z, canonical.x, canonical.y)
     }
 }
 
@@ -95,40 +86,21 @@ export class OverscaledTileID {
     expandedProjMatrix: mat4 = mat4.create()
     visibleQuadrants?: number
 
-    constructor(
-        overscaledZ: number,
-        wrap: number,
-        z: number,
-        x: number,
-        y: number,
-    ) {
+    constructor(overscaledZ: number, wrap: number, z: number, x: number, y: number) {
         this.overscaledZ = overscaledZ
         this.wrap = wrap
         this.canonical = new CanonicalTileID(z, +x, +y)
-        this.key =
-            wrap === 0 && overscaledZ === z
-                ? this.canonical.key
-                : calculateKey(wrap, overscaledZ, z, x, y)
+        this.key = wrap === 0 && overscaledZ === z ? this.canonical.key : calculateKey(wrap, overscaledZ, z, x, y)
     }
 
     equals(id: OverscaledTileID): boolean {
-        return (
-            this.overscaledZ === id.overscaledZ &&
-            this.wrap === id.wrap &&
-            this.canonical.equals(id.canonical)
-        )
+        return this.overscaledZ === id.overscaledZ && this.wrap === id.wrap && this.canonical.equals(id.canonical)
     }
 
     scaledTo(targetZ: number): OverscaledTileID {
         const zDifference = this.canonical.z - targetZ
         if (targetZ > this.canonical.z) {
-            return new OverscaledTileID(
-                targetZ,
-                this.wrap,
-                this.canonical.z,
-                this.canonical.x,
-                this.canonical.y,
-            )
+            return new OverscaledTileID(targetZ, this.wrap, this.canonical.z, this.canonical.x, this.canonical.y)
         } else {
             return new OverscaledTileID(
                 targetZ,
@@ -148,13 +120,7 @@ export class OverscaledTileID {
     calculateScaledKey(targetZ: number, withWrap: boolean = true): number {
         if (this.overscaledZ === targetZ && withWrap) return this.key
         if (targetZ > this.canonical.z) {
-            return calculateKey(
-                this.wrap * +withWrap,
-                targetZ,
-                this.canonical.z,
-                this.canonical.x,
-                this.canonical.y,
-            )
+            return calculateKey(this.wrap * +withWrap, targetZ, this.canonical.z, this.canonical.x, this.canonical.y)
         } else {
             const zDifference = this.canonical.z - targetZ
             return calculateKey(
@@ -187,13 +153,7 @@ export class OverscaledTileID {
         if (this.overscaledZ >= sourceMaxZoom) {
             // return a single tile coord representing a an overscaled tile
             return [
-                new OverscaledTileID(
-                    this.overscaledZ + 1,
-                    this.wrap,
-                    this.canonical.z,
-                    this.canonical.x,
-                    this.canonical.y,
-                ),
+                new OverscaledTileID(this.overscaledZ + 1, this.wrap, this.canonical.z, this.canonical.x, this.canonical.y),
             ]
         }
 
@@ -223,23 +183,11 @@ export class OverscaledTileID {
     }
 
     wrapped(): OverscaledTileID {
-        return new OverscaledTileID(
-            this.overscaledZ,
-            0,
-            this.canonical.z,
-            this.canonical.x,
-            this.canonical.y,
-        )
+        return new OverscaledTileID(this.overscaledZ, 0, this.canonical.z, this.canonical.x, this.canonical.y)
     }
 
     unwrapTo(wrap: number): OverscaledTileID {
-        return new OverscaledTileID(
-            this.overscaledZ,
-            wrap,
-            this.canonical.z,
-            this.canonical.x,
-            this.canonical.y,
-        )
+        return new OverscaledTileID(this.overscaledZ, wrap, this.canonical.z, this.canonical.x, this.canonical.y)
     }
 
     overscaleFactor(): number {
@@ -258,13 +206,7 @@ export class OverscaledTileID {
 /**
  * @private
  */
-export function calculateKey(
-    wrap: number,
-    overscaledZ: number,
-    z: number,
-    x: number,
-    y: number,
-): number {
+export function calculateKey(wrap: number, overscaledZ: number, z: number, x: number, y: number): number {
     // only use 22 bits for x & y so that the key fits into MAX_SAFE_INTEGER
     const dim = 1 << Math.min(z, 22)
     let xy = dim * (y % dim) + (x % dim)
@@ -272,10 +214,7 @@ export function calculateKey(
     // zigzag-encode wrap if we have the room for it
     if (wrap && z < 22) {
         const bitsAvailable = 2 * (22 - z)
-        xy +=
-            dim *
-            dim *
-            ((wrap < 0 ? -2 * wrap - 1 : 2 * wrap) % (1 << bitsAvailable))
+        xy += dim * dim * ((wrap < 0 ? -2 * wrap - 1 : 2 * wrap) % (1 << bitsAvailable))
     }
 
     // encode z into 5 bits (24 max) and overscaledZ into 4 bits (10 max)
@@ -303,13 +242,7 @@ export const neighborCoord = [
             x = (1 << coord.canonical.z) - 1
             w--
         }
-        return new OverscaledTileID(
-            coord.overscaledZ,
-            w,
-            coord.canonical.z,
-            x,
-            coord.canonical.y,
-        )
+        return new OverscaledTileID(coord.overscaledZ, w, coord.canonical.z, x, coord.canonical.y)
     },
     (coord: OverscaledTileID): OverscaledTileID => {
         let x = coord.canonical.x + 1
@@ -318,13 +251,7 @@ export const neighborCoord = [
             x = 0
             w++
         }
-        return new OverscaledTileID(
-            coord.overscaledZ,
-            w,
-            coord.canonical.z,
-            x,
-            coord.canonical.y,
-        )
+        return new OverscaledTileID(coord.overscaledZ, w, coord.canonical.z, x, coord.canonical.y)
     },
     (coord: OverscaledTileID): OverscaledTileID =>
         new OverscaledTileID(
@@ -332,9 +259,7 @@ export const neighborCoord = [
             coord.wrap,
             coord.canonical.z,
             coord.canonical.x,
-            (coord.canonical.y === 0
-                ? 1 << coord.canonical.z
-                : coord.canonical.y) - 1,
+            (coord.canonical.y === 0 ? 1 << coord.canonical.z : coord.canonical.y) - 1,
         ),
     (coord: OverscaledTileID): OverscaledTileID =>
         new OverscaledTileID(
@@ -342,9 +267,7 @@ export const neighborCoord = [
             coord.wrap,
             coord.canonical.z,
             coord.canonical.x,
-            coord.canonical.y === (1 << coord.canonical.z) - 1
-                ? 0
-                : coord.canonical.y + 1,
+            coord.canonical.y === (1 << coord.canonical.z) - 1 ? 0 : coord.canonical.y + 1,
         ),
 ] as const
 

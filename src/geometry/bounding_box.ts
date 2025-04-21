@@ -45,24 +45,14 @@ export class BoundingBox {
     }
 
     overlaps(other: BoundingBox) {
-        return (
-            this.minX < other.maxX &&
-            this.maxX > other.minX &&
-            this.minY < other.maxY &&
-            this.maxY > other.minY
-        )
+        return this.minX < other.maxX && this.maxX > other.minX && this.minY < other.maxY && this.maxY > other.minY
     }
 
     contains(x: number, y: number) {
-        return (
-            x >= this.minX && x <= this.maxX && y >= this.minY && y <= this.maxY
-        )
+        return x >= this.minX && x <= this.maxX && y >= this.minY && y <= this.maxY
     }
 
     containsBox(box: BoundingBox) {
-        return (
-            this.contains(box.minX, box.minY) &&
-            this.contains(box.maxX, box.maxY)
-        )
+        return this.contains(box.minX, box.minY) && this.contains(box.maxX, box.maxY)
     }
 }

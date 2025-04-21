@@ -1,356 +1,254 @@
-import { mat4, vec3 } from 'gl-matrix'
+import { vec3 } from 'gl-matrix'
 import { Map, CustomLayerInterface } from 'mapbox-gl'
-import { Frustum } from '../geometry/frustum'
+
+import { getMatrices } from './map_transform'
+import { Frustum, Aabb } from '../geometry'
+import { MercatorCoordinate, tileAABB } from '../util'
+import { BaseTile } from './tile_id'
+import { BoxLayer } from '../test/boxlayer'
+
+/////// Const //////////////////////////////////
+const NUM_WORLD_COPIES = 3
+const defaultConfig = {
+    minTileZoom: 0,
+    maxTileZoom: 24,
+    elevationMode: false,
+}
+type TileManagerConfig = Partial<typeof defaultConfig>
+
+type QuadTileNode = {
+    wrap: number
+    x: number
+    y: number
+    z: number
+    aabb: Aabb
+    maxAltitude: number
+    minAltitude: number
+    fullyVisible: boolean
+    shouldSplit?: boolean
+}
+type CoveringTileNode = {
+    x: number
+    y: number
+    z: number
+    wrap: number
+    distance: number // distance to camera
+}
 
 export default class TileManager implements CustomLayerInterface {
-    // Map handler
-    private _map: Map
-
-    // Base configuration
+    // Base
     type: 'custom' = 'custom'
     id: string = 'tile_manager'
     renderingMode: '2d' | '3d' = '3d'
 
-    // !
+    debugMode: boolean = true
+    debugLayer: BoxLayer | null = null
+
+    // Options
+    minTileZoom: number
+    maxTileZoom: number
+    elevationMode: boolean
+
+    // Core-Properties
+    private _map: Map
     frustum!: Frustum
 
-    constructor(map: Map) {
+    constructor(map: Map, config: TileManagerConfig = {}) {
         this._map = map
+
+        const options = Object.assign({}, defaultConfig, config)
+        this.elevationMode = options.elevationMode
+        this.minTileZoom = options.minTileZoom
+        this.maxTileZoom = options.maxTileZoom
+
+        if (this.debugMode) {
+            this.debugLayer = new BoxLayer('debug-layer', [])
+            this._map.addLayer(this.debugLayer)
+        }
     }
 
     onAdd(_: Map, __: WebGL2RenderingContext) {
-        console.log('TileManager added', this._map)
+        console.log('TileManager added !', this._map)
     }
 
     render(_: WebGL2RenderingContext, __: Array<number>) {
+        const tiles = this.coveringTile()
+        this.debugLayer?.updateTileBounds(tiles)
+    }
+
+    coveringTile(): Array<BaseTile> {
+        /////// Basic variables //////////////////////////////////////////////////
         const transform = this._map.transform
-        // const invVPMatrix = transform.invProjMatrix // note: 这里估计要用自己的matrix
-        const { mercatorMatrix, projMatrix, invProjMatrix } = getMatrices(transform, -100.0)!
-        const worldSize = transform.worldSize
-        // 默认是floor的，除非在初始化map的时候特殊设置，这里就不考虑Round了 --- transform.ts 807 coveringZoomLevel
-        const highestTileZoom = Math.floor(transform.zoom)
-        this.frustum = Frustum.fromInvViewProjection(
-            invProjMatrix,
-            worldSize,
-            highestTileZoom,
-        )
-        
-        // const transform = this._map.transform
-        // const matrices = getMatrices(transform)
-        // const invProjMatrix = matrices?.invProjMatrix
+        let mapZoom = transform.zoom
+        if (mapZoom < this.minTileZoom) return []
+        if (mapZoom > this.maxTileZoom) mapZoom = this.maxTileZoom
 
-        // if (!invProjMatrix) return
+        const elevationMode = this.elevationMode
+        const minTileZoom = this.minTileZoom
+        const maxTileZoom = Math.floor(mapZoom)
+        const worldSize_wd = 1 << maxTileZoom
 
-        // const z = Math.max(
-        //     0,
-        //     Math.floor(
-        //         transform.zoom +
-        //             scaleZoom(transform.tileSize / transform.tileSize),
-        //     ),
-        // )
-        // const centerCoord = transform.locationCoordinate(transform.center)
-        // const centerLatitude = transform.center.lat
-        // const numTiles = 1 << z
-        // const meterToTile =
-        //     numTiles * mercatorZfromAltitude(1, transform.center.lat)
-        // const centerPoint = [
-        //     numTiles * centerCoord.x,
-        //     numTiles * centerCoord.y,
-        //     0,
-        // ]
-        // const isGlobe = transform.projection.name === 'globe'
-        // const zInMeters = !isGlobe
-        // const cameraFrustum = Frustum.fromInvProjectionMatrix(
-        //     invProjMatrix,
-        //     transform.worldSize,
-        //     z,
-        //     zInMeters,
-        // )
-        // const cameraCoord = transform.pointCoordinate(
-        //     transform.getCameraPoint(),
-        // )
-        // const cameraAltitude =
-        //     transform._camera.position[2] /
-        //     mercatorZfromAltitude(1, transform.center.lat)
-        // const cameraPoint = [
-        //     numTiles * cameraCoord.x,
-        //     numTiles * cameraCoord.y,
-        //     cameraAltitude * (zInMeters ? 1 : meterToTile),
-        // ]
-        // const verticalFrustumIntersect = true
+        let minElevation = 0,
+            maxElevation = 0
+        if (elevationMode) {
+            maxElevation = 1000 * 6000 // 6000 km, a little less than 6371 km
+            minElevation = -maxElevation
+        }
 
-        // const maxRange = 100
-        // const minRange = -maxRange
+        /////// Map Center //////////////////////////////////////////////////////
+        // Lnglat-space | Webmercator-space | WD-space
+        const mapCenter_lnglat = [transform._center.lng, transform._center.lat]
+        const mapCenter_wmc = MercatorCoordinate.fromLngLat(mapCenter_lnglat)
+        const mapCenter_wd = [mapCenter_wmc[0] * worldSize_wd, mapCenter_wmc[1] * worldSize_wd, 0.0]
+        const mapCenterAltitude = 0.0 // temporary
+
+        /////// zAxis-translation ///////////////////////////////////////////////
+        // Meter-unit | WebmercatorZ-unit | WD-Z-unit
+        const meter2wmcz = MercatorCoordinate.mercatorZfromAltitude(1, mapCenter_lnglat[1]) // meter to wmc-z
+        const wmcz2meter = 1.0 / meter2wmcz // wmc-z to meter
+        const meter2wdz = worldSize_wd * meter2wmcz // meter -> WD-z
+
+        /////// Camera-Pos /////////////////////////////////////////////////////
+        const cameraPos_wmc = transform.getFreeCameraOptions().position
+        if (!cameraPos_wmc) return []
+        const cameraAltitude = cameraPos_wmc.z * wmcz2meter
+        const cameraPos_wd = [worldSize_wd * cameraPos_wmc.x, worldSize_wd * cameraPos_wmc.y, cameraAltitude]
+        const cameraHeight = (cameraAltitude - mapCenterAltitude) * meter2wdz // in pixel coords.
+
+        /////// Frustum  //////////////////////////////////////////////////////
+        const { invProjMatrix } = getMatrices(transform, -100.0)!
+        this.frustum = Frustum.fromInvViewProjection(invProjMatrix, transform.worldSize, maxTileZoom)
+
+        ////// Tile-Picking /////////////////////////////////////////////////////
+        const stack: QuadTileNode[] = []
+        let coveringTilesList: CoveringTileNode[] = []
+        if (transform.renderWorldCopies) {
+            for (let i = 1; i <= NUM_WORLD_COPIES; i++) {
+                stack.push(rootTileNode(-i))
+                stack.push(rootTileNode(i))
+            }
+        }
+        stack.push(rootTileNode(0))
+
+        while (stack.length > 0) {
+            const node = stack.pop()!
+            const x = node.x
+            const y = node.y
+            const z = node.z
+            let fullyVisible = node.fullyVisible
+
+            // Step 1: Make intersection check to determine [ If frustum fully contains Aabb when fullyVisible == false || undefined ]
+            if (!fullyVisible) {
+                const intersect = elevationMode ? node.aabb.intersects(this.frustum) : node.aabb.intersectsFlat(this.frustum)
+
+                if (intersect === 0) continue // discard if not at all intersected
+
+                fullyVisible = intersect === 2
+            }
+
+            // Step 2: Stop splitting and collect it [ If tile-z is maxTileZoom, or the tile is too far from the camera ]
+            if (z === maxTileZoom || !shouldNodeSplit(node)) {
+                /*
+                    Calculate dx, dy in WD_Space
+                    node.wrap << z is node.wrap * numTiles in node.z
+                    if maxTileZoom is 3, node.z is 2, and node.x is 1,
+                    then the size of this tile is equivalent to 2^(maxTileZoom - z) times larger than a maxTileZoom tile.
+                */
+                const dx = mapCenter_wd[0] - (0.5 + x + (node.wrap << z)) * (1 << (maxTileZoom - z))
+                const dy = mapCenter_wd[1] - (y + 0.5)
+
+                coveringTilesList.push({
+                    x,
+                    y,
+                    z,
+                    wrap: node.wrap,
+                    distance: Math.sqrt(dx * dx + dy * dy),
+                })
+
+                continue
+            }
+
+            // Step 3: Quadrant
+            for (let i = 0; i < 4; i++) {
+                /*   ————————————
+                    |  0  |  1  |
+                    ————————————
+                    |  2  |  3  |
+                    ————————————  */
+                const childX = (x << 1) + (i % 2)
+                const childY = (y << 1) + (i >> 1)
+
+                const aabb = node.aabb.quadrant(i)
+                const child: QuadTileNode = {
+                    x: childX,
+                    y: childY,
+                    z: z + 1,
+                    aabb: aabb,
+                    maxAltitude: maxElevation,
+                    minAltitude: minElevation,
+                    fullyVisible: fullyVisible,
+                    shouldSplit: undefined,
+                    wrap: node.wrap,
+                }
+
+                stack.push(child)
+            }
+        }
+
+        // Sort by distance to camera
+        const cover = coveringTilesList.sort((a, b) => a.distance - b.distance)
+        return cover
+
+        // local helper /////////////////////////////////////////////////
+        /**
+         * Creates a root tile node.
+         * @param warp
+         * @returns A QuadTileNode representing the world root tile.
+         */
+        function rootTileNode(warp: number): QuadTileNode {
+            return {
+                x: 0,
+                y: 0,
+                z: 0,
+                wrap: warp,
+                aabb: tileAABB(worldSize_wd, 0, 0, 0, warp, minElevation, maxElevation),
+                maxAltitude: minElevation,
+                minAltitude: maxElevation,
+                fullyVisible: false,
+            } as QuadTileNode
+        }
+
+        /**
+         * Determines if the given tile node should be split based on `distance to the camera`.
+         * @param node The tile node to evaluate.
+         * @returns A boolean indicating whether the node should be split.
+         */
+        function shouldNodeSplit(node: QuadTileNode): boolean {
+            if (node.z < minTileZoom) return true
+            if (node.z >= maxTileZoom) return false
+            if (node.shouldSplit != null) return node.shouldSplit
+
+            const camera2corner: vec3 = [0, 0, 0]
+
+            // Note: closest-point is cameraPos_wd if it is inside the camera AABB
+            const closestCornerPoint = node.aabb.closestPoint(cameraPos_wd as vec3)
+            vec3.sub(camera2corner, closestCornerPoint, cameraPos_wd as vec3)
+            camera2corner[2] = elevationMode ? camera2corner[2] * meter2wdz : cameraHeight
+
+            const closestDistance = vec3.dot(camera2corner, transform._camera.forward())
+
+            let distToSplit = 1 << (maxTileZoom - node.z) // default mode
+            // let distToSplit = (1 << maxTileZoom - node.z - 1) // lazy mode
+            // let distToSplit = (1 << maxTileZoom - node.z + 1) // hurry mode
+
+            if (closestDistance < distToSplit) {
+                return true
+            }
+
+            // Border case: with tilt of 85 degrees, center could be outside max zoom distance, due to scale.
+            // Ensure max zoom tiles over center.
+            const closestPointToCenter = node.aabb.closestPoint(mapCenter_wd as vec3)
+            return closestPointToCenter[0] === mapCenter_wd[0] && closestPointToCenter[1] === mapCenter_wd[1]
+        }
     }
-}
-// Helpers //////////////////////////////////////////////////////////////////////////////////////////////////////
-
-function encodeFloatToDouble(value: number) {
-    const result = new Float32Array(2)
-    result[0] = value
-
-    const delta = value - result[0]
-    result[1] = delta
-    return result
-}
-
-function getMatrices(t: any, minElevation: number = -800.0) {
-    if (!t.height) return
-
-    t._updateCameraState()
-
-    const offset = t.centerOffset
-
-    // Z-axis uses pixel coordinates when globe mode is enabled
-    const pixelsPerMeter = t.pixelsPerMeter
-
-    const _farZ = farthestPixelDistanceOnPlane(t, minElevation, pixelsPerMeter)
-
-    // The larger the value of nearZ is
-    // - the more depth precision is available for features (good)
-    // - clipping starts appearing sooner when the camera is close to 3d features (bad)
-    //
-    // Smaller values worked well for mapbox-gl-js but deckgl was encountering precision issues
-    // when rendering it's layers using custom layers. This value was experimentally chosen and
-    // seems to solve z-fighting issues in deckgl while not clipping buildings too close to the camera.
-    t._nearZ = t.height / 50
-
-    const zUnit = t.projection.zAxisUnit === 'meters' ? pixelsPerMeter : 1.0
-    const worldToCamera = t._camera.getWorldToCamera(t.worldSize, zUnit)
-
-    let cameraToClip
-
-    // Projection matrix
-    const cameraToClipPerspective = t._camera.getCameraToClipPerspective(
-        t._fov,
-        t.width / t.height,
-        t._nearZ,
-        _farZ,
-    )
-    // Apply offset/padding
-    cameraToClipPerspective[8] = (-offset.x * 2) / t.width
-    cameraToClipPerspective[9] = (offset.y * 2) / t.height
-
-    if (t.isOrthographic) {
-        const cameraToCenterDistance =
-            ((0.5 * t.height) / Math.tan(t._fov / 2.0)) * 1.0
-
-        // Calculate bounds for orthographic view
-        let top = cameraToCenterDistance * Math.tan(t._fov * 0.5)
-        let right = top * t.aspect
-        let left = -right
-        let bottom = -top
-        // Apply offset/padding
-        right -= offset.x
-        left -= offset.x
-        top += offset.y
-        bottom += offset.y
-
-        cameraToClip = t._camera.getCameraToClipOrthographic(
-            left,
-            right,
-            bottom,
-            top,
-            t._nearZ,
-            _farZ,
-        )
-    } else {
-        cameraToClip = cameraToClipPerspective
-    }
-
-    let m = mat4.multiply([] as any, cameraToClip, worldToCamera)
-
-    // The mercatorMatrix can be used to transform points from mercator coordinates
-    // ([0, 0] nw, [1, 1] se) to GL coordinates. / zUnit compensates for scaling done in worldToCamera.
-    const mercatorMatrix = mat4.scale([] as any, m, [
-        t.worldSize,
-        t.worldSize,
-        t.worldSize / zUnit,
-    ])
-    const projMatrix: mat4 = mat4.copy([] as any, m)
-    const invProjMatrix = mat4.invert(
-        new Float64Array(16) as unknown as mat4,
-        projMatrix,
-    )
-
-    return {
-        mercatorMatrix: mercatorMatrix,
-        projMatrix: projMatrix,
-        invProjMatrix: invProjMatrix,
-    }
-}
-
-function clamp(x: number, min: number, max: number): number {
-    return Math.min(Math.max(x, min), max)
-}
-
-function smoothstep(e0: number, e1: number, x: number) {
-    x = clamp((x - e0) / (e1 - e0), 0, 1)
-    return x * x * (3 - 2 * x)
-}
-
-function farthestPixelDistanceOnPlane(
-    tr: any,
-    minElevation: number,
-    pixelsPerMeter: number,
-) {
-    // Find the distance from the center point [width/2 + offset.x, height/2 + offset.y] to the
-    // center top point [width/2 + offset.x, 0] in Z units, using the law of sines.
-    // 1 Z unit is equivalent to 1 horizontal px at the center of the map
-    // (the distance between[width/2, height/2] and [width/2 + 1, height/2])
-    const fovAboveCenter = tr.fovAboveCenter
-
-    // Adjust distance to MSL by the minimum possible elevation visible on screen,
-    // this way the far plane is pushed further in the case of negative elevation.
-    const minElevationInPixels = minElevation * pixelsPerMeter
-    const cameraToSeaLevelDistance =
-        (tr._camera.position[2] * tr.worldSize - minElevationInPixels) /
-        Math.cos(tr._pitch)
-    const topHalfSurfaceDistance =
-        (Math.sin(fovAboveCenter) * cameraToSeaLevelDistance) /
-        Math.sin(Math.max(Math.PI / 2.0 - tr._pitch - fovAboveCenter, 0.01))
-
-    // Calculate z distance of the farthest fragment that should be rendered.
-    const furthestDistance =
-        Math.sin(tr._pitch) * topHalfSurfaceDistance + cameraToSeaLevelDistance
-    const horizonDistance = cameraToSeaLevelDistance * (1 / tr._horizonShift)
-
-    // Add a bit extra to avoid precision problems when a fragment's distance is exactly `furthestDistance`
-    return Math.min(furthestDistance * 1.01, horizonDistance)
-}
-
-function getProjectionInterpolationT(
-    projection: any,
-    zoom: number,
-    width: number,
-    height: number,
-    maxSize = Infinity,
-) {
-    const range = projection.range
-    if (!range) return 0
-
-    const size = Math.min(maxSize, Math.max(width, height))
-    // The interpolation ranges are manually defined based on what makes
-    // sense in a 1024px wide map. Adjust the ranges to the current size
-    // of the map. The smaller the map, the earlier you can start unskewing.
-    const rangeAdjustment = Math.log(size / 1024) / Math.LN2
-    const zoomA = range[0] + rangeAdjustment
-    const zoomB = range[1] + rangeAdjustment
-    const t = smoothstep(zoomA, zoomB, zoom)
-    return t
-}
-
-function makePerspectiveMatrix(
-    fovy: number,
-    aspect: number,
-    near: number,
-    far: number,
-) {
-    const f = 1.0 / Math.tan(fovy / 2)
-    const nf = 1 / (near - far)
-
-    return [
-        f / aspect,
-        0,
-        0,
-        0,
-        0,
-        f,
-        0,
-        0,
-        0,
-        0,
-        (far + near) * nf,
-        -1,
-        0,
-        0,
-        2 * far * near * nf,
-        0,
-    ]
-}
-
-function updateWorldCamera(
-    transform: any,
-    mercatorWorldSize: number,
-    minElevation = -30.0,
-) {
-    const fov = transform._fov
-    const halfFov = transform._fov / 2
-
-    const angle = transform.angle
-    const pitch = transform._pitch
-
-    const aspect = transform.width / transform.height
-
-    const cameraToCenterDistance =
-        ((((0.5 / Math.tan(halfFov)) * mercatorWorldSize) / transform.scale) *
-            transform.height) /
-        512.0
-    const cameraToSeaLevelDistance =
-        (transform._camera.position[2] * mercatorWorldSize - minElevation) /
-        Math.cos(pitch)
-    const topHalfSurfaceDistance =
-        (Math.sin(halfFov) * cameraToSeaLevelDistance) /
-        Math.sin(Math.max(Math.PI / 2.0 - pitch - halfFov, 0.01))
-    const furthestDistance =
-        Math.sin(pitch) * topHalfSurfaceDistance + cameraToSeaLevelDistance
-    const horizonDistance = cameraToSeaLevelDistance / transform._horizonShift
-    const farZ = Math.min(furthestDistance * 1.01, horizonDistance)
-    // const farZ = farthestPixelDistanceOnPlane(transform, -80.06899999999999 * 30.0, transform.pixelsPerMeter)
-    const nearZ = transform.height / 50.0
-
-    const pitchMatrix = mat4.rotateX([] as any, mat4.create(), pitch)
-    const angleMatrix = mat4.rotateZ([] as any, mat4.create(), angle)
-    const worldToCamera = mat4.multiply([] as any, angleMatrix, pitchMatrix)
-
-    const x = transform.pointMerc.x
-    const y = transform.pointMerc.y
-    const centerX = (x - 0.5) * mercatorWorldSize
-    const centerY = (0.5 - y) * mercatorWorldSize
-    const center: vec3 = [centerX, centerY, 0]
-
-    const up = vec3.transformMat4([] as any, [0, 1, 0], angleMatrix)
-    const position = vec3.add(
-        [] as any,
-        vec3.scale(
-            [] as any,
-            vec3.transformMat4([] as any, [0, 0, 1], worldToCamera),
-            cameraToCenterDistance,
-        ),
-        center,
-    )
-
-    const view = mat4.invert(
-        [] as any,
-        mat4.multiply(
-            [] as any,
-            mat4.translate([] as any, mat4.create(), position),
-            worldToCamera,
-        ),
-    )
-
-    return {
-        position,
-        center,
-        up,
-        fov,
-        aspect,
-        view,
-        farZ,
-        nearZ,
-        // nearZ: cameraToCenterDistance / 200,
-    }
-}
-
-function scaleZoom(scale: number): number {
-    return Math.log(scale) / Math.LN2
-}
-
-const earthRadius = 6371008.8
-const earthCircumference = 2 * Math.PI * earthRadius
-function circumferenceAtLatitude(latitude: number): number {
-    return earthCircumference * Math.cos((latitude * Math.PI) / 180)
-}
-function mercatorZfromAltitude(altitude: number, lat: number): number {
-    return altitude / circumferenceAtLatitude(lat)
 }

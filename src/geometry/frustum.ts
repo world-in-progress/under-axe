@@ -1,5 +1,5 @@
 import { mat4, vec3, vec4 } from 'gl-matrix'
-import Aabb from './aabb'
+import { Aabb } from './aabb'
 
 type FrustumPoints = [vec3, vec3, vec3, vec3, vec3, vec3, vec3, vec3]
 type FrustumPlanes = [vec4, vec4, vec4, vec4, vec4, vec4]
@@ -44,11 +44,7 @@ export class Frustum {
      * @param worldSize 当前mapbox世界坐标大小 --> 2^mapZoom * tileSize
      * @param tileHighestZoom 瓦片最大zoom --> floor(mapZoom)
      */
-    static fromInvViewProjection(
-        invProjMatrix: mat4,
-        worldSize: number,
-        tileHighestZoom: number,
-    ): Frustum {
+    static fromInvViewProjection(invProjMatrix: mat4, worldSize: number, tileHighestZoom: number): Frustum {
         const WDSize = Math.pow(2, tileHighestZoom)
         const scaledTileSize = worldSize / WDSize
         const frustum = new Frustum()
@@ -63,10 +59,7 @@ export class Frustum {
      * @param {mat4} invViewProj 逆视图投影矩阵（NDC到世界坐标的变换）
      * @param {number} scaledTileSize 缩放后的瓦片尺寸（worldSize / 2^tileHighestZoom）
      */
-    private calculateFrustumPoints(
-        invViewProj: mat4,
-        scaledTileSize: number,
-    ): void {
+    private calculateFrustumPoints(invViewProj: mat4, scaledTileSize: number): void {
         const clipSpaceCorners = [
             [-1, 1, -1, 1], // Near top left
             [1, 1, -1, 1], // Near top right
@@ -79,11 +72,7 @@ export class Frustum {
         ] as vec4[]
 
         for (let i = 0; i < 8; i++) {
-            const point = vec4.transformMat4(
-                [] as any,
-                clipSpaceCorners[i],
-                invViewProj,
-            )
+            const point = vec4.transformMat4([] as any, clipSpaceCorners[i], invViewProj)
             // 乘以逆VP之后 [x, y, z, w] --> [x/w, y/w, z/w，1.0] ，还原至世界坐标
             // 再除以scaledTileSize到 WD-Space
             // Z值没有除以tileSize，z值单位为meter，不必再变换
@@ -115,19 +104,18 @@ export class Frustum {
                 this.points[p[2]] as unknown as vec3,
                 this.points[p[1]] as unknown as vec3,
             )
-            const n = vec3.normalize(
-                [] as unknown as vec3,
-                vec3.cross([] as unknown as vec3, a, b),
-            ) as [number, number, number]
+            const n = vec3.normalize([] as unknown as vec3, vec3.cross([] as unknown as vec3, a, b)) as [
+                number,
+                number,
+                number,
+            ]
             const d = -vec3.dot(n, this.points[p[1]] as unknown as vec3)
             return n.concat(d) as vec4
         }) as FrustumPlanes
 
         // Normalize planes
         for (const plane of this.planes) {
-            const len = Math.sqrt(
-                plane[0] * plane[0] + plane[1] * plane[1] + plane[2] * plane[2],
-            )
+            const len = Math.sqrt(plane[0] * plane[0] + plane[1] * plane[1] + plane[2] * plane[2])
             vec4.scale(plane, plane, 1.0 / len)
         }
     }
@@ -173,10 +161,7 @@ export class Frustum {
  * @param {Array<vec3>} aabbPoints
  * @returns {number} -0: 不相交， 1: Aabb部分在视锥体内， 2: Aabb完全在视锥体内
  */
-export function intersectsFrustum(
-    frustum: Frustum,
-    aabbPoints: Array<vec3>,
-): number {
+export function intersectsFrustum(frustum: Frustum, aabbPoints: Array<vec3>): number {
     let fullyInside = true
 
     for (let p = 0; p < frustum.planes.length; p++) {
