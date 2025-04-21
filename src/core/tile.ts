@@ -1,4 +1,4 @@
-import { BoundingBox } from './bounding_box'
+import { BoundingBox } from '../geometry/bounding_box'
 
 export class Tile {
     x: number
@@ -93,10 +93,7 @@ const DEG_TO_RAD = Math.PI / 180.0
 function getBboxZoom(bbox: Array<number>): number {
     for (let z = 0; z < MAX_ZOOM; z++) {
         const mask = 1 << (32 - (z + 1))
-        if (
-            (bbox[0] & mask) !== (bbox[2] & mask) ||
-            (bbox[1] & mask) !== (bbox[3] & mask)
-        ) {
+        if ((bbox[0] & mask) !== (bbox[2] & mask) || (bbox[1] & mask) !== (bbox[3] & mask)) {
             return z
         }
     }
@@ -109,8 +106,7 @@ function pointToTileFraction(lon: number, lat: number, z: number) {
     const z2 = Math.pow(2.0, z)
 
     let x = z2 * (lon / 360.0 + 0.5)
-    const y =
-        z2 * (0.5 - (0.25 * Math.log((1.0 + sin) / (1.0 - sin))) / Math.PI)
+    const y = z2 * (0.5 - (0.25 * Math.log((1.0 + sin) / (1.0 - sin))) / Math.PI)
 
     x = x % z2
     if (x < 0) x = x + z2

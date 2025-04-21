@@ -1,4 +1,3 @@
-
 import { Aabb } from '../geometry/aabb'
 import MercatorCoordinate from './mercator_coordinate'
 
@@ -30,8 +29,7 @@ function pointToTileFraction(lon: number, lat: number, z: number) {
     const z2 = Math.pow(2.0, z)
 
     let x = z2 * (lon / 360.0 + 0.5)
-    const y =
-        z2 * (0.5 - (0.25 * Math.log((1.0 + sin) / (1.0 - sin))) / Math.PI)
+    const y = z2 * (0.5 - (0.25 * Math.log((1.0 + sin) / (1.0 - sin))) / Math.PI)
 
     x = x % z2
     if (x < 0) x = x + z2
@@ -41,10 +39,7 @@ function pointToTileFraction(lon: number, lat: number, z: number) {
 function getBboxZoom(bbox: Array<number>): number {
     for (let z = 0; z < MAX_ZOOM; z++) {
         const mask = 1 << (32 - (z + 1))
-        if (
-            (bbox[0] & mask) !== (bbox[2] & mask) ||
-            (bbox[1] & mask) !== (bbox[3] & mask)
-        ) {
+        if ((bbox[0] & mask) !== (bbox[2] & mask) || (bbox[1] & mask) !== (bbox[3] & mask)) {
             return z
         }
     }
@@ -53,17 +48,17 @@ function getBboxZoom(bbox: Array<number>): number {
 }
 
 function tileToPolygonFeature(tile: Array<number>): GeoJSON.Polygon {
-
     const bbox = tileToBBox(tile)
     const poly: GeoJSON.Polygon = {
-
         type: 'Polygon',
-        coordinates: [[
-            [bbox[0], bbox[3]],
-            [bbox[0], bbox[1]],
-            [bbox[2], bbox[1]],
-            [bbox[2], bbox[3]],
-        ]]
+        coordinates: [
+            [
+                [bbox[0], bbox[3]],
+                [bbox[0], bbox[1]],
+                [bbox[2], bbox[1]],
+                [bbox[2], bbox[3]],
+            ],
+        ],
     }
 
     return poly
@@ -94,9 +89,7 @@ function getSiblings(tile: Array<number>) {
 }
 
 function tilesEqual(tile1: Array<number>, tile2: Array<number>) {
-    return (
-        tile1[0] === tile2[0] && tile1[1] === tile2[1] && tile1[2] === tile2[2]
-    )
+    return tile1[0] === tile2[0] && tile1[1] === tile2[1] && tile1[2] === tile2[2]
 }
 
 function hasTile(tiles: Array<Array<number>>, tile: Array<number>) {
@@ -204,14 +197,7 @@ function getTilesInView(
     tile_size: number,
     max_tile_zoom: number,
 ) {
-    const bbox = getBounds(
-        camera_x,
-        camera_y,
-        camera_zoom,
-        canvas_width,
-        canvas_height,
-        tile_size,
-    )
+    const bbox = getBounds(camera_x, camera_y, camera_zoom, canvas_width, canvas_height, tile_size)
 
     const z = Math.min(Math.trunc(camera_zoom), max_tile_zoom)
     const minTile = pointToTile(bbox[0], bbox[3], z) // top-left
@@ -247,15 +233,7 @@ export function tileTransform(id: any): TileTransform {
     }
 }
 
-export function tileAABB(
-    numTiles: number,
-    z: number,
-    x: number,
-    y: number,
-    wrap: number,
-    min: number,
-    max: number,
-): Aabb {
+export function tileAABB(numTiles: number, z: number, x: number, y: number, wrap: number, min: number, max: number): Aabb {
     const tt = tileTransform({ z, x, y })
     const tx = tt.x / tt.scale
     const ty = tt.y / tt.scale
@@ -266,10 +244,7 @@ export function tileAABB(
         throw new Error('tileAABB: NaN')
     }
 
-    return new Aabb(
-        [(wrap + tx) * numTiles, numTiles * ty, min],
-        [(wrap + tx2) * numTiles, numTiles * ty2, max],
-    )
+    return new Aabb([(wrap + tx) * numTiles, numTiles * ty, min], [(wrap + tx2) * numTiles, numTiles * ty2, max])
 }
 
 export {

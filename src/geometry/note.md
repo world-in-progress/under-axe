@@ -57,6 +57,18 @@
   }
 ```
 
+## 🤔 pixels-per-meter 和 meter-to-tile的关系？
+这两者的关系，就是上文提及的 `地图世界坐标系` 和 `WD坐标系` 之间的关系
+按照mapbox里变量命名和源码comment来说，这里说的地图世界坐标系就对应pixels-coord, WD坐标系就对应tile-coord
+> pixels-per-meter <--> 每米的像素数 <--> meter-to-pixels
+> meter-to-tile <--> 从米到瓦片单位 <--> tileunits-per-meter
+结合代码瞅瞅
+```javascript
+  const pixelsPerMeter = mercatorZfromAltitude(1, lat) * worldSize;
+  const meterToTile = mercatorZfromAltitude(1, lat) * numTiles; // numTiles <==> worldSize_wd
+```
+这个坐标系统是真乱，注意区分三个空间 // Lnglat-space | Webmercator-space | WD-space
+
 
 ## 🤔 几个矩阵
 ```javascript

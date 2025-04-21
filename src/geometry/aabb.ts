@@ -9,11 +9,7 @@ export class Aabb {
     constructor(min: vec3, max: vec3) {
         this.min = min
         this.max = max
-        this.center = vec3.scale(
-            [] as any,
-            vec3.add([] as any, this.min, this.max),
-            0.5,
-        )
+        this.center = vec3.scale([] as any, vec3.add([] as any, this.min, this.max), 0.5)
     }
 
     /**
@@ -92,7 +88,7 @@ export class Aabb {
      *  |  0  |  1  |
      *  ————————————
      *  |  2  |  3  |
-     *  ———————————— 
+     *  ————————————
      * @param {number} index 0, 1, 2, 3
      * @returns {Aabb}
      */
@@ -115,26 +111,17 @@ export class Aabb {
      * @returns {number}
      */
     distanceX(point: Array<number>): number {
-        const pointOnAabb = Math.max(
-            Math.min(this.max[0], point[0]),
-            this.min[0],
-        )
+        const pointOnAabb = Math.max(Math.min(this.max[0], point[0]), this.min[0])
         return pointOnAabb - point[0]
     }
 
     distanceY(point: Array<number>): number {
-        const pointOnAabb = Math.max(
-            Math.min(this.max[1], point[1]),
-            this.min[1],
-        )
+        const pointOnAabb = Math.max(Math.min(this.max[1], point[1]), this.min[1])
         return pointOnAabb - point[1]
     }
 
     distanceZ(point: Array<number>): number {
-        const pointOnAabb = Math.max(
-            Math.min(this.max[2], point[2]),
-            this.min[2],
-        )
+        const pointOnAabb = Math.max(Math.min(this.max[2], point[2]), this.min[2])
         return pointOnAabb - point[2]
     }
 
@@ -164,10 +151,7 @@ export class Aabb {
      */
     intersectsAabb(aabb: Aabb): boolean {
         for (let axis = 0; axis < 3; ++axis) {
-            if (
-                this.min[axis] > aabb.max[axis] ||
-                this.max[axis] < aabb.min[axis]
-            ) {
+            if (this.min[axis] > aabb.max[axis] || this.max[axis] < aabb.min[axis]) {
                 return false
             }
         }
@@ -256,30 +240,27 @@ export class Aabb {
     }
 }
 
-
-
-
-
 type TileCoord = {
-    x: number,
-    y: number,
+    x: number
+    y: number
     z: number
 }
-function tileAABB({ tileXYZ, minh, maxh, worldSize_wd }: {
-    tileXYZ: TileCoord,
-    minh: number,
-    maxh: number,
+function tileAABB({
+    tileXYZ,
+    minh,
+    maxh,
+    worldSize_wd,
+}: {
+    tileXYZ: TileCoord
+    minh: number
+    maxh: number
     worldSize_wd: number
 }): Aabb {
-    const { x, y, z } = tileXYZ;
-    const s = 1.0 / Math.pow(2, z);
+    const { x, y, z } = tileXYZ
+    const s = 1.0 / Math.pow(2, z)
 
-    const [minx, miny, maxx, maxy] = [
-        x * s,
-        y * s,
-        (x + 1) * s,
-        (y + 1) * s];
+    const [minx, miny, maxx, maxy] = [x * s, y * s, (x + 1) * s, (y + 1) * s]
 
     // NT-Space AABB
-    return new Aabb([minx * worldSize_wd, miny * worldSize_wd, minh], [maxx * worldSize_wd, maxy * worldSize_wd, maxh]);
+    return new Aabb([minx * worldSize_wd, miny * worldSize_wd, minh], [maxx * worldSize_wd, maxy * worldSize_wd, maxh])
 }
