@@ -15,6 +15,13 @@ function tile2lat(y: number, z: number): number {
     return RAD_TO_DEG * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n)))
 }
 
+function tileToCenterLngLat(tile: Array<number>): Array<number> {
+    const [x, y, z] = tile
+    const centerLng = tile2lon(x + 0.5, z)
+    const centerLat = tile2lat(y + 0.5, z)
+    return [centerLng, centerLat]
+}
+
 function tileToBBox(tile: Array<number>): Array<number> {
     const w = tile2lon(tile[0], tile[2])
     const e = tile2lon(tile[0] + 1.0, tile[2])
@@ -250,6 +257,7 @@ export function tileAABB(numTiles: number, z: number, x: number, y: number, wrap
 export {
     tile2lon,
     tile2lat,
+    tileToCenterLngLat,
     tileToPolygonFeature,
     tileToBBox,
     getChildren,

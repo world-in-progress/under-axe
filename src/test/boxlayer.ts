@@ -1,6 +1,6 @@
 import { mat4 } from 'gl-matrix'
-import { BaseTile } from '../core/tile_id'
-import { tileToBBox } from '../util/tile_util'
+import { BaseTile, OverscaledTileID } from '../core/tile_id'
+import { tileToBBox, tileToCenterLngLat } from '../util/tile_util'
 import MercatorCoordinate from '../util/mercator_coordinate'
 
 export class BoxLayer implements mapboxgl.CustomLayerInterface {
@@ -21,6 +21,14 @@ export class BoxLayer implements mapboxgl.CustomLayerInterface {
     private indexBuffer: WebGLBuffer | null = null
     private uMatrix: WebGLUniformLocation | null = null
 
+    updateTileLable: () => void
+
+    // TextLayer resources
+    private labelGeojson: GeoJSON.FeatureCollection = {
+        type: 'FeatureCollection',
+        features: [],
+    }
+
     constructor(id: string, baseTileList: BaseTile[]) {
         this.id = id
         this.type = 'custom'
@@ -30,11 +38,16 @@ export class BoxLayer implements mapboxgl.CustomLayerInterface {
         document.addEventListener('keydown', (e) => {
             this.debugKey = e.key
         })
+
+        this.updateTileLable = debounce(this._updateTileLable, 50).bind(this)
+
     }
 
     onAdd(map: mapboxgl.Map, gl: WebGL2RenderingContext) {
         this.gl = gl
         this.map = map
+
+        // Setup for tile-fill-rendering
         const vertexShader = gl.createShader(gl.VERTEX_SHADER)!
         gl.shaderSource(
             vertexShader,
@@ -81,16 +94,28 @@ export class BoxLayer implements mapboxgl.CustomLayerInterface {
 
             in float idx;
 
-            vec3 randomColor(int seed) {
-                float seedFloat = float(seed);
-                float r = fract(sin(seedFloat * 12.9898) * 758.5453);
-                float g = fract(sin(seedFloat * 78.233) * 78.1933);
-                float b = fract(sin(seedFloat * 5.2316) * 37.883);
-                return vec3(r, g, b);
+            vec3 colorMap(int index) {
+
+                vec3[] palette = vec3[11](
+                    vec3(158.0, 1.0, 66.0),
+                    vec3(213.0, 62.0, 79.0),
+                    vec3(244.0, 109.0, 67.0),
+                    vec3(253.0, 174.0, 97.0),
+                    vec3(254.0, 224.0, 139.0),
+                    vec3(255.0, 255.0, 191.0),
+                    vec3(230.0, 245.0, 152.0),
+                    vec3(171.0, 221.0, 164.0),
+                    vec3(102.0, 194.0, 165.0),
+                    vec3(50.0, 136.0, 189.0),
+                    vec3(94.0, 79.0, 162.0)
+                );
+
+                return palette[index] / 255.0;
             }
+
             void main() {
-                int index = int(idx);
-                fragColor = vec4(randomColor(index), 0.5);
+                int index = int(idx) % 11;
+                fragColor = vec4(colorMap(index), 0.65);
             }
         `,
         )
@@ -115,6 +140,31 @@ export class BoxLayer implements mapboxgl.CustomLayerInterface {
         this.indexBuffer = gl.createBuffer()
 
         this.updateBuffers()
+
+
+        // Setup for labelLayer
+        this.labelGeojson.features = []
+        map.addSource('tile-labels', {
+            type: 'geojson',
+            data: this.labelGeojson
+        })
+        map.addLayer({
+            id: 'tile-label-layer',
+            type: 'symbol',
+            source: 'tile-labels',
+            layout: {
+                'text-field': ['get', 'label'],
+                'text-size': 24,
+                'text-anchor': 'center',
+                'text-pitch-alignment': 'map',
+                'text-rotation-alignment': 'map'
+            },
+            paint: {
+                'text-color': '#000000',
+                'text-halo-color': '#ffffff',
+                'text-halo-width': 3
+            }
+        })
     }
 
     render(gl: WebGL2RenderingContext, matrix: number[]) {
@@ -190,10 +240,43 @@ export class BoxLayer implements mapboxgl.CustomLayerInterface {
         this.indices = indices
     }
 
-    updateTileBounds(tileBounds: BaseTile[]) {
-        this.baseTiles = tileBounds
-        console.log(this.baseTiles.length)
+    updateTileBounds(tileBounds: OverscaledTileID[]) {
+
+        // Update for tile-fill-layer
+
+        this.baseTiles = tileBounds.map((tile) => {
+            return {
+                x: tile.canonical.x,
+                y: tile.canonical.y,
+                z: tile.canonical.z,
+                wrap: tile.wrap
+            } as BaseTile
+        })
+
         this.updateBuffers()
+
+        this.updateTileLable()
+
+    }
+
+    _updateTileLable() {
+        // Update for text-layer
+        const features = this.baseTiles.map(tile => {
+            const center = tileToCenterLngLat([tile.x, tile.y, tile.z])
+            return {
+                type: 'Feature',
+                geometry: {
+                    type: 'Point',
+                    coordinates: [center[0] + tile.wrap * 360, center[1]]
+                },
+                properties: {
+                    label: `x:${tile.x} y:${tile.y} z:${tile.z}`
+                }
+            } as GeoJSON.Feature
+        })
+
+        this.labelGeojson.features = features;
+        this.map.getSource<mapboxgl.GeoJSONSource>('tile-labels')?.setData(this.labelGeojson);
     }
 }
 
@@ -202,4 +285,15 @@ function encodeFloatToDouble(value: number) {
     result[0] = value
     result[1] = value - result[0]
     return result
+}
+
+function debounce<T extends (...args: any) => any>(fn: T, delay: number) {
+
+    let timer: ReturnType<typeof setTimeout> | null = null
+    return function (this: ThisParameterType<T>, ...args: Parameters<T>) {
+        if (timer) clearTimeout(timer)
+        timer = setTimeout(() => {
+            fn.apply(this, args)
+        }, delay)
+    }
 }
