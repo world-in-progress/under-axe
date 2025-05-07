@@ -1,3 +1,1 @@
-export default class TileLoader {
-
-}
+export default class TileLoader {}

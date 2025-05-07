@@ -40,7 +40,6 @@ export class BoxLayer implements mapboxgl.CustomLayerInterface {
         })
 
         this.updateTileLable = debounce(this._updateTileLable, 50).bind(this)
-
     }
 
     onAdd(map: mapboxgl.Map, gl: WebGL2RenderingContext) {
@@ -141,12 +140,11 @@ export class BoxLayer implements mapboxgl.CustomLayerInterface {
 
         this.updateBuffers()
 
-
         // Setup for labelLayer
         this.labelGeojson.features = []
         map.addSource('tile-labels', {
             type: 'geojson',
-            data: this.labelGeojson
+            data: this.labelGeojson,
         })
         map.addLayer({
             id: 'tile-label-layer',
@@ -157,13 +155,13 @@ export class BoxLayer implements mapboxgl.CustomLayerInterface {
                 'text-size': 24,
                 'text-anchor': 'center',
                 'text-pitch-alignment': 'map',
-                'text-rotation-alignment': 'map'
+                'text-rotation-alignment': 'map',
             },
             paint: {
                 'text-color': '#000000',
                 'text-halo-color': '#ffffff',
-                'text-halo-width': 3
-            }
+                'text-halo-width': 3,
+            },
         })
     }
 
@@ -241,7 +239,6 @@ export class BoxLayer implements mapboxgl.CustomLayerInterface {
     }
 
     updateTileBounds(tileBounds: OverscaledTileID[]) {
-
         // Update for tile-fill-layer
 
         this.baseTiles = tileBounds.map((tile) => {
@@ -249,34 +246,33 @@ export class BoxLayer implements mapboxgl.CustomLayerInterface {
                 x: tile.canonical.x,
                 y: tile.canonical.y,
                 z: tile.canonical.z,
-                wrap: tile.wrap
+                wrap: tile.wrap,
             } as BaseTile
         })
 
         this.updateBuffers()
 
         this.updateTileLable()
-
     }
 
     _updateTileLable() {
         // Update for text-layer
-        const features = this.baseTiles.map(tile => {
+        const features = this.baseTiles.map((tile) => {
             const center = tileToCenterLngLat([tile.x, tile.y, tile.z])
             return {
                 type: 'Feature',
                 geometry: {
                     type: 'Point',
-                    coordinates: [center[0] + tile.wrap * 360, center[1]]
+                    coordinates: [center[0] + tile.wrap * 360, center[1]],
                 },
                 properties: {
-                    label: `x:${tile.x} y:${tile.y} z:${tile.z}`
-                }
+                    label: `x:${tile.x} y:${tile.y} z:${tile.z}`,
+                },
             } as GeoJSON.Feature
         })
 
-        this.labelGeojson.features = features;
-        this.map.getSource<mapboxgl.GeoJSONSource>('tile-labels')?.setData(this.labelGeojson);
+        this.labelGeojson.features = features
+        this.map.getSource<mapboxgl.GeoJSONSource>('tile-labels')?.setData(this.labelGeojson)
     }
 }
 
@@ -288,7 +284,6 @@ function encodeFloatToDouble(value: number) {
 }
 
 function debounce<T extends (...args: any) => any>(fn: T, delay: number) {
-
     let timer: ReturnType<typeof setTimeout> | null = null
     return function (this: ThisParameterType<T>, ...args: Parameters<T>) {
         if (timer) clearTimeout(timer)

@@ -4,7 +4,7 @@ import { Class, Klass } from '../types'
 // import { GridNode, GridNodeRecord } from '../grid/NHGrid'
 
 export type Registry = {
-    [ key: string ]: {
+    [key: string]: {
         klass: Klass
         omit: ReadonlyArray<string>
     }
@@ -21,12 +21,12 @@ export function register<T extends any>(klass: Class<T>, name: string, options: 
 
     Object.defineProperty(klass, '_classRegistryKey', {
         value: name,
-        writable: false
+        writable: false,
     })
 
     registry[name] = {
         klass,
-        omit: options.omit || []
+        omit: options.omit || [],
     } as unknown as Registry[string]
 }
 

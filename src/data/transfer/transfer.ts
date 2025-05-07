@@ -1,18 +1,15 @@
-import registry from "./register"
-import { Klass, Serialized, SerializedObject, Transferable } from "../types"
+import registry from './register'
+import { Klass, Serialized, SerializedObject, Transferable } from '../types'
 
 function isArrayBuffer(val: any): boolean {
-
     return val instanceof ArrayBuffer
 }
 
 function isImageBitmap(val: any): boolean {
-
     return val instanceof ImageBitmap
 }
 
 export function serialize(input: unknown, transferables?: Set<Transferable>): Serialized {
-    
     if (
         input === null ||
         input === undefined ||
@@ -24,7 +21,8 @@ export function serialize(input: unknown, transferables?: Set<Transferable>): Se
         input instanceof String ||
         input instanceof Date ||
         input instanceof RegExp
-    ) return input
+    )
+        return input
 
     if (isArrayBuffer(input) || isImageBitmap(input)) {
         transferables?.add(input as Transferable)
@@ -43,13 +41,13 @@ export function serialize(input: unknown, transferables?: Set<Transferable>): Se
     }
 
     if (Array.isArray(input)) {
-        const serialized: Array<Serialized> = input.map(item => serialize(item, transferables))
+        const serialized: Array<Serialized> = input.map((item) => serialize(item, transferables))
         return serialized
     }
 
     if (input instanceof Set) {
-        const properties: { [ key: number | string ]: Serialized } = { '$name': 'Set' }
-        input.values().forEach((value, index) => properties[index + 1] = serialize(value))
+        const properties: { [key: number | string]: Serialized } = { $name: 'Set' }
+        input.values().forEach((value, index) => (properties[index + 1] = serialize(value)))
         return properties
     }
 
@@ -80,11 +78,10 @@ export function serialize(input: unknown, transferables?: Set<Transferable>): Se
         return properties
     }
 
-    throw new Error(`Cannot serialize object of type ${typeof input}`);
+    throw new Error(`Cannot serialize object of type ${typeof input}`)
 }
 
 export function deserialize(input: Serialized): unknown {
-
     if (
         input === null ||
         input === undefined ||
@@ -100,7 +97,8 @@ export function deserialize(input: Serialized): unknown {
         isArrayBuffer(input) ||
         isImageBitmap(input) ||
         ArrayBuffer.isView(input)
-    ) return input
+    )
+        return input
 
     if (Array.isArray(input)) {
         return input.map(deserialize)
@@ -129,7 +127,7 @@ export function deserialize(input: Serialized): unknown {
         }
 
         const result: {
-            [ key: string ]: any
+            [key: string]: any
         } = Object.create(klass.prototype)
 
         for (const key of Object.keys(input)) {

@@ -38,7 +38,6 @@ export default class TilePicker {
     debugMode: boolean = true
     debugLayer: BoxLayer | null = null
 
-
     // Core-Properties
     private _map: Map
     frustum!: Frustum
@@ -48,10 +47,10 @@ export default class TilePicker {
     }
 
     coveringTile(options: {
-        minzoom?: number; // data-source minzoom
-        maxzoom?: number; // data-source maxzoom
-        renderWorldCopies?: boolean; // enable warp
-        isDEMTile?: boolean;
+        minzoom?: number // data-source minzoom
+        maxzoom?: number // data-source maxzoom
+        renderWorldCopies?: boolean // enable warp
+        isDEMTile?: boolean
         // isDEMCoverTile?: boolean;
     }): Array<OverscaledTileID> {
         /////// Basic variables //////////////////////////////////////////////////
@@ -140,7 +139,7 @@ export default class TilePicker {
 
             // Step 2: Stop splitting and collect it [ If tile-z is maxTileZoom, or the tile is too far from the camera ]
             if (z === maxTileZoom || !shouldNodeSplit(node)) {
-                const tileZoom = z === maxTileZoom ? overscaledZ : z;
+                const tileZoom = z === maxTileZoom ? overscaledZ : z
                 /*
                     Calculate dx, dy in WD_Space
                     node.wrap << z is node.wrap * numTiles in node.z
@@ -178,7 +177,7 @@ export default class TilePicker {
                     const minmax = getTileElevationMinMax(x, y, z)
                     aabb.min[2] = minmax.min
                     aabb.max[2] = minmax.max
-                    aabb.center[2] = (minmax.min + minmax.max) / 2;
+                    aabb.center[2] = (minmax.min + minmax.max) / 2
                 }
 
                 const child: QuadTileNode = {
@@ -253,14 +252,13 @@ export default class TilePicker {
             return closestPointToCenter[0] === mapCenter_wd[0] && closestPointToCenter[1] === mapCenter_wd[1]
         }
 
-
         /**
          * Get dem tile`s min & max
          */
-        function getTileElevationMinMax(x: number, y: number, z: number): { min: number, max: number } {
+        function getTileElevationMinMax(x: number, y: number, z: number): { min: number; max: number } {
             return {
                 min: minElevation,
-                max: maxElevation
+                max: maxElevation,
             }
         }
     }

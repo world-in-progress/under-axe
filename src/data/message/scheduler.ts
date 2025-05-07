@@ -13,39 +13,35 @@ export type Task = {
 }
 
 class Scheduler {
-
     nextId = 0
     taskQueue: number[] = []
-    tasks: { [ key: number ]: Task } = {}
+    tasks: { [key: number]: Task } = {}
 
     invoker: ThrottledInvoker
 
     constructor() {
-
         bindAll(['process'], this)
         this.invoker = new ThrottledInvoker(this.process)
     }
 
     add(fn: Function, metadata: TaskMetadata): Cancelable {
-
         const id = this.nextId++
-        
+
         this.tasks[id] = { id, fn, metadata }
         this.taskQueue.push(id)
         this.invoker.trigger()
         return {
             cancel: () => {
                 delete this.tasks[id]
-            }
+            },
         }
     }
 
     process() {
-
-        this.taskQueue = this.taskQueue.filter(id => !!this.tasks[id])
+        this.taskQueue = this.taskQueue.filter((id) => !!this.tasks[id])
 
         if (!this.taskQueue.length) return
-        
+
         const id = this.pick()
         if (id === null) return
 
@@ -61,14 +57,12 @@ class Scheduler {
     }
 
     pick(): null | number {
-        
         const id = this.taskQueue[0]
         this.taskQueue.splice(0, 1)
         return id
     }
 
     remove() {
-
         this.invoker.remove()
     }
 }

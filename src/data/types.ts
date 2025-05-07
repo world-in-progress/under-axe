@@ -22,4 +22,17 @@ export type SerializedObject = {
     [_: string]: Serialized
 }
 
-export type Serialized = unknown | null | undefined | boolean | number | string | Date | RegExp | ArrayBuffer | ArrayBufferView | ImageData | Array<Serialized> | SerializedObject
+export type Serialized =
+    | unknown
+    | null
+    | undefined
+    | boolean
+    | number
+    | string
+    | Date
+    | RegExp
+    | ArrayBuffer
+    | ArrayBufferView
+    | ImageData
+    | Array<Serialized>
+    | SerializedObject

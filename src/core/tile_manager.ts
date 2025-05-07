@@ -1,10 +1,7 @@
 import { Map, CustomLayerInterface } from 'mapbox-gl'
 
-
 import { BoxLayer } from '../test/boxlayer'
 import TilePicker from './tile_picker'
-
-
 
 export default class TileManager implements CustomLayerInterface {
     // Base
@@ -39,7 +36,7 @@ export default class TileManager implements CustomLayerInterface {
             minzoom: 5,
             maxzoom: 10,
             renderWorldCopies: true,
-            isDEMTile: false
+            isDEMTile: false,
         })
         this.debugLayer?.updateTileBounds(tiles)
     }

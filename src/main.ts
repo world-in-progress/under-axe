@@ -15,7 +15,7 @@ mapboxgl.accessToken = 'pk.eyJ1IjoieWNzb2t1IiwiYSI6ImNrenozdWdodDAza3EzY3BtdHh4c
 
 const empty = {
     version: 8,
-    glyphs: "/glyphs/{fontstack}/{range}.pbf",
+    glyphs: '/glyphs/{fontstack}/{range}.pbf',
     sources: {
         'placeholder-source': {
             type: 'geojson',
@@ -60,7 +60,6 @@ const map = new mapboxgl.Map({
 })
 
 map.on('load', () => {
-
     const tileManager = new TileManager(map)
     map.addLayer(tileManager)
 
@@ -89,32 +88,27 @@ if (window.location.hash) {
     })
 }
 
-
 function terrainTest(map: mapboxgl.Map) {
     map.addSource('terrain', {
         type: 'raster-dem',
         minzoom: 0,
         maxzoom: 14,
         tileSize: 128,
-        tiles: [
-            '/TTB/128/{z}/{x}/{y}.png'
-        ]
+        tiles: ['/TTB/128/{z}/{x}/{y}.png'],
     })
-    map.setTerrain({ "source": 'terrain', "exaggeration": 30.0 })
+    map.setTerrain({ source: 'terrain', exaggeration: 30.0 })
 }
 
 function addPlaceHolder(map: mapboxgl.Map) {
     map.showTileBoundaries = true
-    map.addLayer(
-        {
-            id: 'placeholder-layer',
-            type: 'circle',
-            minzoom: 0,
-            maxzoom: 16,
-            source: 'placeholder-source',
-            paint: {
-                'circle-color': 'red',
-            },
+    map.addLayer({
+        id: 'placeholder-layer',
+        type: 'circle',
+        minzoom: 0,
+        maxzoom: 16,
+        source: 'placeholder-source',
+        paint: {
+            'circle-color': 'red',
         },
-    )
+    })
 }

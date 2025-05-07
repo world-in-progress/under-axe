@@ -1,11 +1,9 @@
 class ThrottledInvoker {
-
     private _triggered = false
     private _callback: Function
     private _channel: MessageChannel | undefined
 
     constructor(callback: Function) {
-
         this._callback = callback
         if (typeof MessageChannel !== undefined) {
             this._channel = new MessageChannel()
@@ -14,13 +12,11 @@ class ThrottledInvoker {
     }
 
     private _process() {
-        
         this._triggered = false
         this._callback()
     }
 
     trigger() {
-
         if (!this._triggered) {
             this._triggered = true
 
@@ -30,7 +26,6 @@ class ThrottledInvoker {
     }
 
     remove() {
-
         this._channel = undefined
         this._callback = () => {}
     }
