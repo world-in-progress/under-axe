@@ -7,7 +7,6 @@ type TileRequestParams = {
 }
 
 export function loadTile(this: WorkerSelf, params: TileRequestParams, callback: Callback<any>) {
-
     const url = params.url
     try {
         http.get<Blob>(url, { timeout: 500, responseType: 'blob' }).then((res) => {

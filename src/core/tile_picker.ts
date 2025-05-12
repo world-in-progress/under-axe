@@ -252,4 +252,19 @@ export default class TilePicker {
             }
         }
     }
+
+    extendTileCover(coverTiles: Array<OverscaledTileID>) {
+        const extendTileSet = new Set<number>()
+        let extendTiles: Array<OverscaledTileID> = []
+
+        for (let ozTile of coverTiles) {
+            const parentOzTile = ozTile.parent()
+            if (!parentOzTile) continue
+            if (extendTileSet.has(parentOzTile.key)) continue
+            extendTileSet.add(parentOzTile.key)
+            extendTiles.push(parentOzTile)
+        }
+
+        return extendTiles
+    }
 }
