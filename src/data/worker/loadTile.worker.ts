@@ -16,7 +16,9 @@ export function loadTile(this: WorkerSelf, params: TileRequestParams, callback: 
                 return
             }
 
-            createImageBitmap(res.data).then((bitmap: ImageBitmap) => {
+            createImageBitmap(res.data, {
+                // 'imageOrientation': 'flipY'
+            }).then((bitmap: ImageBitmap) => {
                 callback(null, bitmap)
             })
         })

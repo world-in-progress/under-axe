@@ -14,8 +14,8 @@ export class Tile {
     width: number
     height: number
     overscaledTileID: OverscaledTileID
-
     gpuTexture: WebGLTexture | null
+    parentTile: Tile | null = null
     u_topLeft: [number, number]
     u_scale: number
 
@@ -32,6 +32,12 @@ export class Tile {
         this.gpuTexture = null
         this.status = 'ready'
         this.gl = ezStore.get<WebGL2RenderingContext>('gl')
+    }
+
+    injectParentTile(parentGPUTexture: WebGLTexture, tl: [number, number], scale: number) {
+        this.gpuTexture = parentGPUTexture
+        this.u_topLeft = tl
+        this.u_scale = scale
     }
 
     get id() {
@@ -90,6 +96,8 @@ export class Tile {
                 this.width = bitmap.width
                 this.height = bitmap.height
                 this.gpuTexture = createTexture2D(gl, this.width, this.height, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, bitmap)
+                this.u_topLeft = [0.0, 0.0]
+                this.u_scale = 1.0
                 this.status = 'loaded'
             },
         )

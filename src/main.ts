@@ -56,6 +56,7 @@ const map = new mapboxgl.Map({
     projection: 'mercator',
     container: 'map',
     antialias: true,
+    minZoom: 1,
     zoom: 13.5,
 })
 
