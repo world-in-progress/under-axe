@@ -10,8 +10,8 @@ export type TileSourceType = {
 }
 
 class LRUCache {
-    cache: { [key: string]: number }
-    keys: string[]
+    cache: { [key: string]: any }
+    keys: string[] // 维护了从少取用到频繁取用排序的key值， 所以遍历的时候建议逆序遍历
     capacity: number
 
     constructor(capacity: number) {
@@ -51,13 +51,13 @@ class LRUCache {
     }
 }
 
-export default class TileSouce {
+export default class TileSource {
     id: string
     type: 'raster'
-    
+
     url: string
     dispatcher: Dispatcher
-    cache: LRUCache = new LRUCache(50)
+    lruCache: LRUCache = new LRUCache(50)
 
     _tileManager!: TileManager
 
@@ -70,12 +70,23 @@ export default class TileSouce {
     }
 
     loadTile(tile: OverscaledTileID) {
-        if (this.cache!.has(tile.key.toString())) return
+        if (this.lruCache!.has(tile.key.toString())) return
 
         const data_tile = new Tile(tile)
         data_tile.actor = this.dispatcher.actor
+
+        const closestTileInfo = this.findClosestAvailableTile(tile)
+        if (closestTileInfo.tile) { // 找到了最近的 loaded Tile
+            data_tile.injectParentTile(
+                closestTileInfo.tile.gpuTexture!,
+                closestTileInfo.tl,
+                closestTileInfo.scale
+            )
+        } else {
+            console.log('😢, 燃尽了... 没找到爹地,闪烁一下吧')
+        }
+        this.lruCache.put(data_tile.id, data_tile)
         data_tile.load(this.url)
-        this.cache.put(data_tile.id, data_tile)
     }
 
     unloadTile(tile: Tile) {
@@ -91,14 +102,59 @@ export default class TileSouce {
 
         const tiles: Tile[] = []
         for (const ozID of coveringOZIDs) {
-            const tile = this.cache?.get<Tile>(ozID.key.toString())
-            tile && tiles.push(tile)
+            const tile = this.lruCache.get<Tile>(ozID.key.toString())
+            if (tile)
+                tiles.push(tile)
+            // else {
+            //     const closestTile = this.findClosestAvailableTile(ozID)
+
+            //     if (closestTile) tiles.push(closestTile)
+            //     else console.log('别急')
+            // }
+
+
         }
         return tiles
     }
 
+    private findClosestAvailableTile(ozID: OverscaledTileID): {
+        tile: Tile | null,
+        tl: [number, number],
+        scale: number
+    } {
+
+        const cacheLength = this.lruCache.keys.length
+        let closestTile = null
+        let tl = [0, 0] as [number, number]
+        let scale = 1.0
+        for (let i = cacheLength - 1; i >= 0; i--) {
+
+            const key = this.lruCache.keys[i]
+            const cachedTile = this.lruCache.cache[key] as Tile
+            if (ozID.isChildOf(cachedTile.overscaledTileID) && cachedTile.status === 'loaded') {
+
+                closestTile = cachedTile
+                const closestFatherCanonical = closestTile.overscaledTileID.canonical
+                const sonCanonical = ozID.canonical
+
+                scale = Math.pow(2, closestFatherCanonical.z - sonCanonical.z)
+                tl[0] = sonCanonical.x * scale % 1
+                tl[1] = sonCanonical.y * scale % 1
+
+                break;
+            }
+        }
+
+        return {
+            tile: closestTile,
+            tl,
+            scale
+        }
+
+    }
+
     remove() {
-        this.cache.remove()
+        this.lruCache.remove()
         this.dispatcher.remove()
     }
 }

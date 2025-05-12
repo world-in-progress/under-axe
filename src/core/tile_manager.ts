@@ -3,7 +3,7 @@ import { mat4 } from 'gl-matrix'
 
 import { BoxLayer } from '../test/boxlayer'
 import TilePicker from './tile_picker'
-import TileSouce, { type TileSourceType } from './tile_source'
+import TileSource, { type TileSourceType } from './tile_source'
 import Dispatcher from '../data/message/dispatcher'
 import { OverscaledTileID } from './tile_id'
 import ezstore from './store'
@@ -16,7 +16,7 @@ export default class TileManager implements CustomLayerInterface {
     id: string = 'tile_manager'
     renderingMode: '2d' | '3d' = '3d'
 
-    debugMode: boolean = true
+    debugMode: boolean = false
     debugLayer: BoxLayer | null = null
 
     // Core-Properties
@@ -24,7 +24,7 @@ export default class TileManager implements CustomLayerInterface {
     private _picker: TilePicker
     dispatcher: Dispatcher | null = null
 
-    tileSouces = new window.Map<string, TileSouce>()
+    tileSouces = new window.Map<string, TileSource>()
     coveringTiles: OverscaledTileID[] = []
 
     sharingVPMatrix!: mat4
@@ -49,7 +49,7 @@ export default class TileManager implements CustomLayerInterface {
 
         this.sharingVPMatrix = getMatrices(this._map.transform).projMatrix
         this.coveringTiles = this._picker.coveringTile({
-            minzoom: 5,
+            minzoom: 0,
             maxzoom: 14,
             renderWorldCopies: true,
             isDEMTile: false,
@@ -64,20 +64,20 @@ export default class TileManager implements CustomLayerInterface {
     }
 
     addSource(sourceDesc: TileSourceType) {
-        const tileSouce = new TileSouce(sourceDesc)
-        tileSouce._tileManager = this
-        this.tileSouces.set(tileSouce.id, tileSouce)
+        const tileSource = new TileSource(sourceDesc)
+        tileSource._tileManager = this
+        this.tileSouces.set(tileSource.id, tileSource)
     }
 
     removeSource(sourceId: string) {
-        const tileSouce = this.tileSouces.get(sourceId)
-        if (!tileSouce) return
+        const tileSource = this.tileSouces.get(sourceId)
+        if (!tileSource) return
 
-        tileSouce.remove()
+        tileSource.remove()
         this.tileSouces.delete(sourceId)
     }
 
-    getSource(sourceId: string): TileSouce | undefined {
+    getSource(sourceId: string): TileSource | undefined {
         return this.tileSouces.get(sourceId)
     }
 }

@@ -3,8 +3,8 @@
 precision highp float;
 
 uniform mat4 tMVP;
-// uniform vec2 tl;
-// uniform float scale;
+uniform vec2 u_topLeft;
+uniform float u_scale;
 
 out vec2 texcoords;
 
@@ -14,8 +14,8 @@ void main() {
 
     vec4 attributes = vertices[gl_VertexID];
 
+    texcoords = (attributes.xy / 8192.0 * u_scale + u_topLeft);
     gl_Position = tMVP * vec4(attributes.xy, 0.0, 1.0);
-    texcoords = vec2(attributes.z, 1.0 - attributes.w);
 
 }
 

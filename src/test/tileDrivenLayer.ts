@@ -1,6 +1,6 @@
 import { mat4 } from 'gl-matrix'
 import TileManager from '../core/tile_manager'
-import TileSouce from '../core/tile_source'
+import TileSource from '../core/tile_source'
 import { createShader } from '../util/glLib'
 import { getMatrices } from '../util/map_transform'
 
@@ -13,7 +13,7 @@ export class TileDrivenLayer implements mapboxgl.CustomLayerInterface {
 
     // Tile resources
     tileManager: TileManager
-    tileSource: TileSouce
+    tileSource: TileSource
 
     // WebGL resources
     private gl: WebGL2RenderingContext | null = null
@@ -29,7 +29,8 @@ export class TileDrivenLayer implements mapboxgl.CustomLayerInterface {
         tileManager.addSource({
             id: 'terrainRGB',
             type: 'raster',
-            url: 'http://127.0.0.1:8079/test/{z}/{x}/{y}.png',
+            // url: 'http://127.0.0.1:8079/test/{z}/{x}/{y}.png',
+            url: 'https://webst01.is.autonavi.com/appmaptile?style=6&x={x}&y={y}&z={z}',
         })
         this.tileManager = tileManager
         this.tileSource = tileManager.getSource('terrainRGB')!
@@ -50,7 +51,7 @@ export class TileDrivenLayer implements mapboxgl.CustomLayerInterface {
         if (!this.ready) return
 
         const tiles = this.tileSource.coveringTiles()
-        
+
         for (let rasterTile of tiles) {
 
             const posMatrix = rasterTile.tilePosMatrix()
@@ -59,6 +60,9 @@ export class TileDrivenLayer implements mapboxgl.CustomLayerInterface {
 
             gl.useProgram(this.program)
             gl.uniformMatrix4fv(gl.getUniformLocation(this.program!, 'tMVP'), false, tMVP)
+            gl.uniform1f(gl.getUniformLocation(this.program!, 'u_scale'), rasterTile.u_scale)
+            gl.uniform2fv(gl.getUniformLocation(this.program!, 'u_topLeft'), rasterTile.u_topLeft)
+
             gl.activeTexture(gl.TEXTURE0)
             gl.bindTexture(gl.TEXTURE_2D, rasterTile.gpuTexture)
             gl.uniform1i(gl.getUniformLocation(this.program!, 'tileTexture'), 0)
