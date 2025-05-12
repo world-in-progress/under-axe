@@ -1,11 +1,10 @@
 import { vec3 } from 'gl-matrix'
 import { Map } from 'mapbox-gl'
 
-import { getMatrices } from './map_transform'
+import { getMatrices } from '../util/map_transform'
 import { Frustum, Aabb } from '../geometry'
 import { MercatorCoordinate, tileAABB } from '../util'
 import { OverscaledTileID } from './tile_id'
-import { BoxLayer } from '../test/boxlayer'
 
 /////// Const //////////////////////////////////
 const NUM_WORLD_COPIES = 3
@@ -35,10 +34,6 @@ export default class TilePicker {
     type: 'custom' = 'custom'
     id: string = 'tile_picker'
 
-    debugMode: boolean = true
-    debugLayer: BoxLayer | null = null
-
-
     // Core-Properties
     private _map: Map
     frustum!: Frustum
@@ -48,11 +43,10 @@ export default class TilePicker {
     }
 
     coveringTile(options: {
-        minzoom?: number; // data-source minzoom
-        maxzoom?: number; // data-source maxzoom
-        renderWorldCopies?: boolean; // enable warp
-        isDEMTile?: boolean;
-        // isDEMCoverTile?: boolean;
+        minzoom?: number // data-source minzoom
+        maxzoom?: number // data-source maxzoom
+        renderWorldCopies?: boolean // enable warp
+        isDEMTile?: boolean
     }): Array<OverscaledTileID> {
         /////// Basic variables //////////////////////////////////////////////////
         const transform = this._map.transform
@@ -60,11 +54,6 @@ export default class TilePicker {
         let reparseOverscaled = false
 
         const isDEMTile = options.isDEMTile
-
-        // const isDemCoverTile = options.isDEMCoverTile
-        // if (isDEMTile && isDemCoverTile) {
-        //     throw new Error('DEM-cover-tile and DEM-tile are mutually exclusive.')
-        // }
 
         const minTileZoom = options.minzoom || 0
         const mapMaxTileZoom = Math.floor(mapZoom) // actually max zoom
@@ -140,7 +129,7 @@ export default class TilePicker {
 
             // Step 2: Stop splitting and collect it [ If tile-z is maxTileZoom, or the tile is too far from the camera ]
             if (z === maxTileZoom || !shouldNodeSplit(node)) {
-                const tileZoom = z === maxTileZoom ? overscaledZ : z;
+                const tileZoom = z === maxTileZoom ? overscaledZ : z
                 /*
                     Calculate dx, dy in WD_Space
                     node.wrap << z is node.wrap * numTiles in node.z
@@ -178,7 +167,7 @@ export default class TilePicker {
                     const minmax = getTileElevationMinMax(x, y, z)
                     aabb.min[2] = minmax.min
                     aabb.max[2] = minmax.max
-                    aabb.center[2] = (minmax.min + minmax.max) / 2;
+                    aabb.center[2] = (minmax.min + minmax.max) / 2
                 }
 
                 const child: QuadTileNode = {
@@ -253,14 +242,13 @@ export default class TilePicker {
             return closestPointToCenter[0] === mapCenter_wd[0] && closestPointToCenter[1] === mapCenter_wd[1]
         }
 
-
         /**
          * Get dem tile`s min & max
          */
-        function getTileElevationMinMax(x: number, y: number, z: number): { min: number, max: number } {
+        function getTileElevationMinMax(x: number, y: number, z: number): { min: number; max: number } {
             return {
                 min: minElevation,
-                max: maxElevation
+                max: maxElevation,
             }
         }
     }

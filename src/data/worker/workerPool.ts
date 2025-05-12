@@ -1,9 +1,6 @@
 export const PRELOAD_POOL_ID = 'preloaded_worker_pool'
 
-type WorkerType = 'Function' | 'IndexedDB'
-
 class WorkerPool {
-
     private static _instance: WorkerPool
 
     static workerCount: number
@@ -13,13 +10,11 @@ class WorkerPool {
     workers: Array<Worker>
 
     constructor() {
-
         this.active = {}
         this.workers = []
     }
 
     static get instance(): WorkerPool {
-
         if (!WorkerPool._instance) {
             WorkerPool._instance = new WorkerPool()
         }
@@ -28,12 +23,9 @@ class WorkerPool {
     }
 
     acquire(id: number | string): Array<Worker> {
-
         if (this.workers.length === 0) {
-
             while (this.workers.length < WorkerPool.workerCount) {
-                
-                this.workers.push(createWorker(this.workers.length === WorkerPool.workerCount - 1 ? 'IndexedDB' : 'Function'))
+                this.workers.push(createWorker())
             }
         }
 
@@ -42,10 +34,9 @@ class WorkerPool {
     }
 
     release(id: number | string) {
-
         delete this.active[id]
         if (this.workers && this.numActive() === 0) {
-            this.workers.forEach(w => {
+            this.workers.forEach((w) => {
                 w.terminate()
             })
             this.workers = []
@@ -53,30 +44,17 @@ class WorkerPool {
     }
 
     isPreloaded(): boolean {
-
         return !!this.active[PRELOAD_POOL_ID]
     }
 
     numActive(): number {
-
         return Object.keys(this.active).length
     }
 }
 
-function createWorker(type: WorkerType) {
-
+function createWorker() {
     let worker: Worker
-    switch (type) {
-        default:
-        case 'Function':
-            worker = new Worker(new URL('./base.worker.ts', import.meta.url), {type: 'module'})!
-            break
-
-        case 'IndexedDB': 
-            worker = new Worker(new URL('./db.worker.ts', import.meta.url), {type: 'module'})!
-            break
-    }
-
+    worker = new Worker(new URL('./base.worker.ts', import.meta.url), { type: 'module' })!
     return worker
 }
 
