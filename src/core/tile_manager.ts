@@ -9,7 +9,6 @@ import { OverscaledTileID } from './tile_id'
 import ezstore from './store'
 import { getMatrices } from '../util/map_transform'
 
-
 export default class TileManager implements CustomLayerInterface {
     // Base
     type: 'custom' = 'custom'
@@ -46,19 +45,23 @@ export default class TileManager implements CustomLayerInterface {
     }
 
     render(_: WebGL2RenderingContext, __: Array<number>) {
-
         this.sharingVPMatrix = getMatrices(this._map.transform).projMatrix
         this.coveringTiles = this._picker.coveringTile({
             minzoom: 0,
-            maxzoom: 14,
+            maxzoom: 18,
             renderWorldCopies: true,
             isDEMTile: false,
         })
+        const extendTiles = this._picker.extendTileCover(this.coveringTiles)
+
         this.debugLayer?.updateTileBounds(this.coveringTiles)
 
         for (let tileSource of this.tileSouces.values()) {
             for (let overscaledTileID of this.coveringTiles) {
                 tileSource.loadTile(overscaledTileID)
+            }
+            for (let extTileID of extendTiles) {
+                tileSource.loadTile(extTileID)
             }
         }
     }

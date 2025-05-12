@@ -57,7 +57,7 @@ const map = new mapboxgl.Map({
     container: 'map',
     antialias: true,
     minZoom: 1,
-    zoom: 13.5,
+    zoom: 1,
 })
 
 map.on('load', () => {
@@ -66,7 +66,7 @@ map.on('load', () => {
 
     const tileDrivenLayer = new TileDrivenLayer('dLayer', tileManager)
     map.addLayer(tileDrivenLayer)
-    
+
     // terrainTest(map)
     // addPlaceHolder(map)
 

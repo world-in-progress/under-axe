@@ -16,7 +16,7 @@ for (const [key, val] of Object.entries(module)) {
 }
 
 function registerModule(this: WorkerSelf, modulePath: string, callback: Callback<any>) {
-    import(/* @vite-ignore */modulePath) 
+    import(/* @vite-ignore */ modulePath)
         .then((module: FuncModule) => {
             for (const [key, val] of Object.entries(module)) {
                 self[key] = val.bind(self)

@@ -62,13 +62,12 @@ export class Tile {
         this._cancel = cancel
     }
 
-    load(tileUrl: string) {
+    load(tileUrl: string, cb?: () => void) {
         if (this.status === 'loaded') return
         if (this.status === 'loading') return
 
         this.status = 'loading'
-        // const gl = this.gl!
-        if (!this.gl) console.warn("tile gl is null")
+        if (!this.gl) console.warn('tile gl is null')
         let gl = this.gl!
         const url = this.overscaledTileID.canonical.url(tileUrl)
         this.cancel = this.actor.send(
@@ -99,6 +98,8 @@ export class Tile {
                 this.u_topLeft = [0.0, 0.0]
                 this.u_scale = 1.0
                 this.status = 'loaded'
+
+                cb && cb()
             },
         )
     }
@@ -122,7 +123,7 @@ export class Tile {
         let scale, scaledX, scaledY
         const canonical = this.overscaledTileID.canonical
         const posMatrix = mat4.identity(new Float64Array(16) as unknown as mat4)
-        const worldSize = ezStore.get<mapboxgl.Map>('map')!.transform.worldSize;
+        const worldSize = ezStore.get<mapboxgl.Map>('map')!.transform.worldSize
 
         scale = worldSize / Math.pow(2, canonical.z)
         const unwrappedX = canonical.x + Math.pow(2, canonical.z) * this.overscaledTileID.wrap
