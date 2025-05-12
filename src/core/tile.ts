@@ -1,114 +1,129 @@
-import { BoundingBox } from '../geometry/bounding_box'
+import { OverscaledTileID } from './tile_id'
+import Actor from '../data/message/actor'
+import { createTexture2D } from '../util/glLib'
+import { Cancelable } from '../data/types'
+import { mat4 } from 'gl-matrix'
+import ezStore from './store'
+
+type TileStatus = 'ready' | 'loading' | 'loaded' | 'error'
+const EXTENT = 8192
 
 export class Tile {
-    x: number
-    y: number
-    z: number
+    status: TileStatus
 
-    constructor(x: number = 0, y: number = 0, z: number = 0) {
-        this.x = x
-        this.y = y
-        this.z = z
+    width: number
+    height: number
+    overscaledTileID: OverscaledTileID
+
+    gpuTexture: WebGLTexture | null
+    u_topLeft: [number, number]
+    u_scale: number
+
+    _cancel: Cancelable | null = null
+    _actor: Actor | null = null
+    gl: WebGL2RenderingContext | null = null
+
+    constructor(overscaledTileID: OverscaledTileID) {
+        this.overscaledTileID = overscaledTileID
+        this.width = 1
+        this.height = 1
+        this.u_topLeft = [0, 0]
+        this.u_scale = 1
+        this.gpuTexture = null
+        this.status = 'ready'
+        this.gl = ezStore.get<WebGL2RenderingContext>('gl')
     }
 
-    static fromKey(key: string): Tile {
-        let x = 0
-        let y = 0
-        let z = 0
-
-        for (let i = z; i > 0; i--) {
-            const mask = 1 << (i - 1)
-            const b = parseInt(key[z - i])
-            if (b === 1) x |= mask
-            if (b === 2) y |= mask
-            if (b === 3) {
-                x |= mask
-                y |= mask
-            }
-        }
-        return new Tile(x, y, z)
+    get id() {
+        return this.overscaledTileID.key.toString()
     }
 
-    static pointToTile(lon: number, lat: number, z: number): Tile {
-        const tile = pointToTileFraction(lon, lat, z)
-        const x = Math.floor(tile[0])
-        const y = Math.floor(tile[1])
-        return new Tile(x, y, z)
+    get actor(): Actor {
+        if (!this._actor) throw new Error('Actor is null')
+        return this._actor
     }
 
-    static bboxToTile(bbox: BoundingBox): Tile {
-        const minTile = this.pointToTile(bbox.minX, bbox.minY, 32)
-        const maxTile = this.pointToTile(bbox.maxX, bbox.maxY, 32)
-        const tileBox = [minTile.x, minTile.y, maxTile.x, maxTile.y]
-
-        const z = getBboxZoom(tileBox)
-        if (z === 0) return new Tile()
-
-        const x = tileBox[0] >>> (32 - z)
-        const y = tileBox[1] >>> (32 - z)
-        return new Tile(x, y, z)
+    set actor(actor: Actor) {
+        this._actor = actor
     }
 
-    get parent(): Tile {
-        return new Tile(this.x >> 1, this.y >> 1, this.z - 1)
+    get cancel() {
+        if (!this._cancel) throw new Error('cancle is not found')
+        return this._cancel
     }
 
-    get children(): Tile[] {
-        return [
-            new Tile(this.x * 2, this.y * 2, this.z + 1),
-            new Tile(this.x * 2 + 1, this.y * 2, this.z + 1),
-            new Tile(this.x * 2 + 1, this.y * 2 + 1, this.z + 1),
-            new Tile(this.x * 2, this.y * 2 + 1, this.z + 1),
-        ]
+    set cancel(cancel: Cancelable) {
+        this._cancel = cancel
     }
 
-    get siblings(): Tile[] {
-        return this.parent.children
+    load(tileUrl: string) {
+        if (this.status === 'loaded') return
+        if (this.status === 'loading') return
+
+        this.status = 'loading'
+        // const gl = this.gl!
+        if (!this.gl) console.warn("tile gl is null")
+        let gl = this.gl!
+        const url = this.overscaledTileID.canonical.url(tileUrl)
+        this.cancel = this.actor.send(
+            'loadTile',
+            {
+                uid: this.overscaledTileID.key,
+                url: url,
+            },
+            (err, bitmap: ImageBitmap) => {
+                if (err) {
+                    console.error(err)
+                    this.gpuTexture = createTexture2D(
+                        gl,
+                        this.width,
+                        this.height,
+                        gl.RGBA8,
+                        gl.RGBA,
+                        gl.UNSIGNED_BYTE,
+                        undefined,
+                    )
+                    this.status = 'error'
+                    return
+                }
+
+                this.width = bitmap.width
+                this.height = bitmap.height
+                this.gpuTexture = createTexture2D(gl, this.width, this.height, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, bitmap)
+                this.status = 'loaded'
+            },
+        )
     }
 
-    get key(): string {
-        let index = ''
-        for (let z = this.z; z > 0; z--) {
-            let b = 0
-            const mask = 1 << (z - 1)
-            if ((this.x & mask) !== 0) b++
-            if ((this.y & mask) !== 0) b += 2
-            index += b.toString()
-        }
-        return index
-    }
-
-    equals(other: Tile): boolean {
-        return this.x === other.x && this.y === other.y && this.z === other.z
-    }
-}
-
-// Helpers //////////////////////////////////////////////////
-
-const MAX_ZOOM = 28
-
-const DEG_TO_RAD = Math.PI / 180.0
-// const RAD_TO_DEG = 180.0 / Math.PI
-
-function getBboxZoom(bbox: Array<number>): number {
-    for (let z = 0; z < MAX_ZOOM; z++) {
-        const mask = 1 << (32 - (z + 1))
-        if ((bbox[0] & mask) !== (bbox[2] & mask) || (bbox[1] & mask) !== (bbox[3] & mask)) {
-            return z
+    unload() {
+        if (this.status === 'loading') {
+            this.cancel.cancel()
+        } else if (this.status === 'loaded') {
+            this.gl!.deleteTexture(this.gpuTexture)
+            this.gpuTexture = null
         }
     }
 
-    return MAX_ZOOM
-}
+    abort() {
+        if (this.status === 'loading') {
+            this.cancel.cancel()
+        }
+    }
 
-function pointToTileFraction(lon: number, lat: number, z: number) {
-    const sin = Math.sin(lat * DEG_TO_RAD)
-    const z2 = Math.pow(2.0, z)
+    tilePosMatrix(): mat4 {
+        let scale, scaledX, scaledY
+        const canonical = this.overscaledTileID.canonical
+        const posMatrix = mat4.identity(new Float64Array(16) as unknown as mat4)
+        const worldSize = ezStore.get<mapboxgl.Map>('map')!.transform.worldSize;
 
-    let x = z2 * (lon / 360.0 + 0.5)
-    const y = z2 * (0.5 - (0.25 * Math.log((1.0 + sin) / (1.0 - sin))) / Math.PI)
+        scale = worldSize / Math.pow(2, canonical.z)
+        const unwrappedX = canonical.x + Math.pow(2, canonical.z) * this.overscaledTileID.wrap
+        scaledX = unwrappedX * scale
+        scaledY = canonical.y * scale
 
-    x = x % z2
-    if (x < 0) x = x + z2
-    return [x, y, z]
+        mat4.translate(posMatrix, posMatrix, [scaledX, scaledY, 0])
+        mat4.scale(posMatrix, posMatrix, [scale / EXTENT, scale / EXTENT, 1])
+
+        return posMatrix
+    }
 }

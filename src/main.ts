@@ -1,6 +1,6 @@
 import mapboxgl from 'mapbox-gl'
 import TileManager from './core/tile_manager'
-
+import { TileDrivenLayer } from './test/tileDrivenLayer'
 // DOM Configuration //////////////////////////////////////////////////////////////////////////////////////////////////////
 
 // Map
@@ -60,11 +60,16 @@ const map = new mapboxgl.Map({
 })
 
 map.on('load', () => {
-    const tileManager = new TileManager(map)
+    const tileManager = new TileManager(map) // 'tile_manager'
     map.addLayer(tileManager)
 
+    const tileDrivenLayer = new TileDrivenLayer('dLayer', tileManager)
+    map.addLayer(tileDrivenLayer)
+    
     // terrainTest(map)
     // addPlaceHolder(map)
+
+    new mapboxgl.Marker().setLngLat([120.2803920596891106, 34.3030449664098393])
 })
 
 map.on('moveend', () => {

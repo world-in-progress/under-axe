@@ -9,8 +9,8 @@ function encodeFloatToDouble(value: number) {
     return result
 }
 
-function getMatrices(t: any, minElevation: number = -800.0) {
-    if (!t.height) return
+function getMatrices(t: any, minElevation: number = -100.0) {
+    // if (!t.height) return
 
     t._updateCameraState()
 

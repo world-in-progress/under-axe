@@ -1,11 +1,10 @@
 import { vec3 } from 'gl-matrix'
 import { Map } from 'mapbox-gl'
 
-import { getMatrices } from './map_transform'
+import { getMatrices } from '../util/map_transform'
 import { Frustum, Aabb } from '../geometry'
 import { MercatorCoordinate, tileAABB } from '../util'
 import { OverscaledTileID } from './tile_id'
-import { BoxLayer } from '../test/boxlayer'
 
 /////// Const //////////////////////////////////
 const NUM_WORLD_COPIES = 3
@@ -35,9 +34,6 @@ export default class TilePicker {
     type: 'custom' = 'custom'
     id: string = 'tile_picker'
 
-    debugMode: boolean = true
-    debugLayer: BoxLayer | null = null
-
     // Core-Properties
     private _map: Map
     frustum!: Frustum
@@ -51,7 +47,6 @@ export default class TilePicker {
         maxzoom?: number // data-source maxzoom
         renderWorldCopies?: boolean // enable warp
         isDEMTile?: boolean
-        // isDEMCoverTile?: boolean;
     }): Array<OverscaledTileID> {
         /////// Basic variables //////////////////////////////////////////////////
         const transform = this._map.transform
@@ -59,11 +54,6 @@ export default class TilePicker {
         let reparseOverscaled = false
 
         const isDEMTile = options.isDEMTile
-
-        // const isDemCoverTile = options.isDEMCoverTile
-        // if (isDEMTile && isDemCoverTile) {
-        //     throw new Error('DEM-cover-tile and DEM-tile are mutually exclusive.')
-        // }
 
         const minTileZoom = options.minzoom || 0
         const mapMaxTileZoom = Math.floor(mapZoom) // actually max zoom

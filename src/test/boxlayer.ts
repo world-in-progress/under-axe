@@ -8,6 +8,7 @@ export class BoxLayer implements mapboxgl.CustomLayerInterface {
     type: 'custom'
     renderingMode: '3d'
     primitiveMode: 'line' | 'fill' = 'fill'
+    showLabel: boolean = false
     map!: mapboxgl.Map
 
     private debugKey: string = '1'
@@ -252,7 +253,7 @@ export class BoxLayer implements mapboxgl.CustomLayerInterface {
 
         this.updateBuffers()
 
-        this.updateTileLable()
+        this.showLabel && this.updateTileLable()
     }
 
     _updateTileLable() {
