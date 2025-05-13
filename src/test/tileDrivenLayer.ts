@@ -30,10 +30,9 @@ export class TileDrivenLayer implements mapboxgl.CustomLayerInterface {
             id: 'terrainRGB',
             type: 'raster',
             // url: 'http://127.0.0.1:8079/test/{z}/{x}/{y}.png',
-            // url: 'https://webst01.is.autonavi.com/appmaptile?style=6&x={x}&y={y}&z={z}',
-            // url: 'https://tile.opentopomap.org/{z}/{x}/{y}.png',
+            url: 'https://webst01.is.autonavi.com/appmaptile?style=6&x={x}&y={y}&z={z}',
             // url: 'https://webrd04.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=7&x={x}&y={y}&z={z}',
-            url: 'https://server.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}.png',
+            // url: 'https://server.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}.png',
         })
         this.tileManager = tileManager
         this.tileSource = tileManager.getSource('terrainRGB')!

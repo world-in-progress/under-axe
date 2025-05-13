@@ -48,9 +48,10 @@ export default class TileManager implements CustomLayerInterface {
         this.sharingVPMatrix = getMatrices(this._map.transform).projMatrix
         this.coveringTiles = this._picker.coveringTile({
             minzoom: 0,
-            maxzoom: 18,
+            maxzoom: 22,
             renderWorldCopies: true,
             isDEMTile: false,
+            roundZoom: true,
         })
         const extendTiles = this._picker.extendTileCover(this.coveringTiles)
 

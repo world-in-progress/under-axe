@@ -1,15 +1,17 @@
-import { bindAll } from '../../util/util'
+import { bindAll, isWorker } from '../../util/util'
 import ThrottledInvoker from './throttledInvoker'
 import type { Cancelable, TaskType } from '../types'
 
 export type TaskMetadata = {
     type: TaskType
+    zoom?: number
 }
 
 export type Task = {
     id: number
     fn: Function
     metadata: TaskMetadata
+    priority: number
 }
 
 class Scheduler {
@@ -25,9 +27,15 @@ class Scheduler {
     }
 
     add(fn: Function, metadata: TaskMetadata): Cancelable {
+        // if (isWorker()) {
+        //     console.log("Worker Scheduler Tasks : ", this.taskQueue)
+        // } else {
+        //     console.log("Main Scheduler Tasks : ", this.taskQueue)
+        // }
         const id = this.nextId++
+        const priority = getPriority(metadata)
 
-        this.tasks[id] = { id, fn, metadata }
+        this.tasks[id] = { id, fn, metadata, priority }
         this.taskQueue.push(id)
         this.invoker.trigger()
         return {
@@ -57,14 +65,38 @@ class Scheduler {
     }
 
     pick(): null | number {
-        const id = this.taskQueue[0]
-        this.taskQueue.splice(0, 1)
+        let id = null
+
+        let minPriority = Infinity
+        let minIndex = 0
+        for (let i = 0; i < this.taskQueue.length; i++) {
+            const taskId = this.taskQueue[i]
+            const task = this.tasks[taskId]
+            if (!task) continue
+
+            if (task.priority < minPriority) {
+                minPriority = task.priority
+                minIndex = i
+            }
+        }
+
+        id = this.taskQueue[minIndex]
+        this.taskQueue.splice(minIndex, 1)
+
+        // console.log('Scheduler Pick : ', this.tasks[id], id)
+
         return id
     }
 
     remove() {
         this.invoker.remove()
     }
+}
+
+function getPriority(metadata: TaskMetadata) {
+    // the smaller the priority value, the higher the priority
+    const zoom = metadata.zoom || 0
+    return 100 - zoom
 }
 
 export default Scheduler

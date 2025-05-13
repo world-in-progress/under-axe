@@ -1,9 +1,9 @@
-import Scheduler from './scheduler'
+import Scheduler, { type TaskMetadata } from './scheduler'
 import { bindAll, isWorker } from '../../util/util'
 import type { Transferable, Cancelable, Callback } from '../types'
 import { deserialize, serialize } from '../transfer/transfer'
 
-type ActorCallback = Callback<any> & { metadata?: any }
+type ActorCallback = Callback<any> & { metadata?: TaskMetadata }
 
 class Actor {
     name = 'Actor'
@@ -26,6 +26,12 @@ class Actor {
         mustQueue = false,
         callbackMetadata?: ActorCallback['metadata'],
     ): Cancelable {
+        // if (isWorker()) {
+        //     console.log("Worker Send : ", data, callback, callbackMetadata)
+        // } else {
+        //     console.log("Main Send : ", data, callback, callbackMetadata)
+        // }
+
         const id = Math.round(Math.random() * 1e18)
             .toString(36)
             .substring(0, 10)
@@ -58,6 +64,12 @@ class Actor {
         const data = message.data
         const id = data.id
 
+        // if (isWorker()) {
+        //     console.log("Worker Receive : ", data)
+        // } else {
+        //     console.log("Main Receive : ", data)
+        // }
+
         if (!id) return
 
         if (data.type === '<cancel>') {
@@ -67,7 +79,9 @@ class Actor {
         } else {
             if (data.mustQueue || isWorker()) {
                 const callback = this.callbacks[id]
-                const metadata = (callback && callback.metadata) || { type: 'message' }
+                let metadata = (callback && callback.metadata) || { type: 'message' }
+                if (data.data && data.data.zoom) Object.assign(metadata, { zoom: data.data.zoom })
+
                 const cancel = this.scheduler.add(() => this.processTask(id, data), metadata)
                 if (cancel) this.cancelCallbacks[id] = cancel
             } else {
@@ -80,9 +94,11 @@ class Actor {
         delete this.cancelCallbacks[id]
         if (task.type === '<response>') {
             const callback = this.callbacks[id]
-            delete this.callbacks[id]
-            if (task.error) callback(deserialize(task.error) as Error)
-            else callback(null, deserialize(task.data))
+            if (callback) {
+                delete this.callbacks[id]
+                if (task.error) callback(deserialize(task.error) as Error)
+                else callback(null, deserialize(task.data))
+            }
         } else {
             const buffers: Set<Transferable> = new Set()
             const done = task.hasCallback

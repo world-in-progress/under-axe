@@ -5,7 +5,7 @@ import { Cancelable } from '../data/types'
 import { mat4 } from 'gl-matrix'
 import ezStore from './store'
 
-type TileStatus = 'ready' | 'loading' | 'loaded' | 'error'
+type TileStatus = 'ready' | 'loading' | 'loaded' | 'error' | 'aborted'
 const EXTENT = 8192
 
 export class Tile {
@@ -35,9 +35,12 @@ export class Tile {
     }
 
     injectParentTile(parentGPUTexture: WebGLTexture, tl: [number, number], scale: number) {
+        // injectParentTile(parent: Tile, tl: [number, number], scale: number) {
+        // if (parent.status === 'loaded') {
         this.gpuTexture = parentGPUTexture
         this.u_topLeft = tl
         this.u_scale = scale
+        // }
     }
 
     get id() {
@@ -65,6 +68,7 @@ export class Tile {
     load(tileUrl: string, cb?: () => void) {
         if (this.status === 'loaded') return
         if (this.status === 'loading') return
+        if (this.status === 'aborted') return
 
         this.status = 'loading'
         if (!this.gl) console.warn('tile gl is null')
@@ -75,6 +79,7 @@ export class Tile {
             {
                 uid: this.overscaledTileID.key,
                 url: url,
+                zoom: this.overscaledTileID.overscaledZ,
             },
             (err, bitmap: ImageBitmap) => {
                 if (err) {
@@ -94,7 +99,16 @@ export class Tile {
 
                 this.width = bitmap.width
                 this.height = bitmap.height
-                this.gpuTexture = createTexture2D(gl, this.width, this.height, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, bitmap)
+                this.gpuTexture = createTexture2D(
+                    gl,
+                    this.width,
+                    this.height,
+                    gl.RGBA8,
+                    gl.RGBA,
+                    gl.UNSIGNED_BYTE,
+                    bitmap,
+                    gl.LINEAR,
+                )
                 this.u_topLeft = [0.0, 0.0]
                 this.u_scale = 1.0
                 this.status = 'loaded'
@@ -109,8 +123,13 @@ export class Tile {
             this.cancel.cancel()
         } else if (this.status === 'loaded') {
             this.gl!.deleteTexture(this.gpuTexture)
-            this.gpuTexture = null
         }
+        this.status = 'aborted'
+
+        // this.gpuTexture = null
+        this.parentTile = null
+        // this._actor = null
+        // this._cancel = null
     }
 
     abort() {

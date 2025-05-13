@@ -15,6 +15,7 @@ void main() {
     vec4 attributes = vertices[gl_VertexID];
 
     texcoords = (attributes.xy / 8192.0 * u_scale + u_topLeft);
+    // texcoords = attributes.zw;
     gl_Position = tMVP * vec4(attributes.xy, 0.0, 1.0);
 
 }

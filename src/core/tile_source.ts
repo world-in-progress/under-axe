@@ -31,22 +31,31 @@ class LRUCache {
         return null
     }
 
-    put(key: string, value: any) {
+    put(key: string, value: any, cb?: (shiftKey: string) => void) {
         if (key in this.cache) {
             this.keys.splice(this.keys.indexOf(key), 1)
         } else if (Object.keys(this.cache).length >= this.capacity) {
             const oldestKey = this.keys.shift()
-            if (oldestKey) delete this.cache[oldestKey]
+            if (oldestKey) {
+                delete this.cache[oldestKey]
+            }
         }
         this.cache[key] = value
         this.keys.push(key)
+    }
+
+    abort(key: string) {
+        if (key in this.cache) {
+            delete this.cache[key]
+            this.keys = this.keys.filter((k) => k !== key)
+        }
     }
 
     has(key: string) {
         return key in this.cache
     }
 
-    remove() {
+    release() {
         this.cache = {}
         this.keys = []
     }
@@ -58,7 +67,7 @@ export default class TileSource {
 
     url: string
     dispatcher: Dispatcher
-    lruCache: LRUCache = new LRUCache(150)
+    lruCache: LRUCache = new LRUCache(125)
 
     _tileManager!: TileManager
 
@@ -78,10 +87,9 @@ export default class TileSource {
 
         const closestTileInfo = this.findClosestAvailableTile(tile)
         if (closestTileInfo.tile) {
-            // 找到了最近的 loaded Tile
             data_tile.injectParentTile(closestTileInfo.tile.gpuTexture!, closestTileInfo.tl, closestTileInfo.scale)
         } else {
-            console.log('😢, 燃尽了... 没找到爹地,闪烁一下吧')
+            // console.log('😢, 燃尽了... 没找到爹地,闪烁一下吧！')
         }
         this.lruCache.put(data_tile.id, data_tile)
         const map = ezStore.get<mapboxgl.Map>('map')
@@ -90,27 +98,34 @@ export default class TileSource {
         })
     }
 
-    unloadTile(tile: Tile) {
-        tile.unload()
-    }
-
     abortTile(tile: Tile) {
-        tile.abort()
+        tile.unload()
+        this.lruCache.abort(tile.id)
+
     }
 
     coveringTiles(): Tile[] {
         const coveringOZIDs = this._tileManager.coveringTiles
 
+        // coveringOZIDs[0] : the nearest tile for camera
+        const nearestOZID = coveringOZIDs[0]; // 最近的焦点瓦片
+
+        this.lruCache.keys.forEach((key) => {
+            const tile = this.lruCache.get<Tile>(key)!;
+            if (!tile) return;
+
+            const inView = coveringOZIDs.find(ozID => ozID.key === tile.overscaledTileID.key);
+
+            if (!inView && shouldAbort(tile, nearestOZID)) {
+                this.abortTile(tile);
+            }
+
+        });
+
         const tiles: Tile[] = []
         for (const ozID of coveringOZIDs) {
             const tile = this.lruCache.get<Tile>(ozID.key.toString())
             if (tile) tiles.push(tile)
-            // else {
-            //     const closestTile = this.findClosestAvailableTile(ozID)
-
-            //     if (closestTile) tiles.push(closestTile)
-            //     else console.log('别急')
-            // }
         }
         return tiles
     }
@@ -127,6 +142,7 @@ export default class TileSource {
         for (let i = cacheLength - 1; i >= 0; i--) {
             const key = this.lruCache.keys[i]
             const cachedTile = this.lruCache.cache[key] as Tile
+
             if (ozID.isChildOf(cachedTile.overscaledTileID) && cachedTile.status === 'loaded') {
                 closestTile = cachedTile
                 const closestFatherCanonical = closestTile.overscaledTileID.canonical
@@ -148,7 +164,41 @@ export default class TileSource {
     }
 
     remove() {
-        this.lruCache.remove()
+        this.lruCache.release()
         this.dispatcher.remove()
     }
+}
+
+function shouldAbort(tile: Tile | null, nearestOZID: OverscaledTileID): boolean {
+    // 当前最近瓦片是 (z=10, x=512, y=512)。
+    // 某个瓦片是 (z=8, x=128, y=128)，其缩放到 z=10 后是 (x=512, y=512)，说明和 nearest 完全重合，不应抛弃。
+    // 某个瓦片是 (z=8, x=140, y=160)，缩放到 z=10 后是 (x=560, y=640)，和 nearest 差距大于阈值，应抛弃。
+
+    if (!tile) return false
+
+    // 0，1，2级的，没有abort的必要
+    if (tile.overscaledTileID.overscaledZ < 3) return false
+
+    const tileID = tile.overscaledTileID
+    const zDiff = nearestOZID.overscaledZ - tileID.overscaledZ
+
+    // tile 比 nearest 深太多了，子子子子瓦片，abort
+    if (zDiff < -2) return true
+
+    // tile 比 nearest 浅太多了，是老祖宗瓦片，abort
+    if (zDiff > 10) return true
+
+    // 缩放 tile 的坐标到 nearestZ 层级
+    const scale = Math.pow(2, zDiff)
+    const scaledTileX = tileID.canonical.x * scale
+    const scaledTileY = tileID.canonical.y * scale
+
+    const dx = scaledTileX - nearestOZID.canonical.x
+    const dy = scaledTileY - nearestOZID.canonical.y
+    const manhattanDist = Math.abs(dx) + Math.abs(dy)
+
+    // 距离nearestOZID的瓦片曼哈顿距离为 100 以上，abort
+    const tolerance = Math.max(100, Math.pow(2, Math.abs(zDiff)) / 2)
+
+    return manhattanDist > tolerance
 }
