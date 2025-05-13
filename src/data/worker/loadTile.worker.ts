@@ -9,7 +9,7 @@ type TileRequestParams = {
 export function loadTile(this: WorkerSelf, params: TileRequestParams, callback: Callback<any>) {
     const url = params.url
     try {
-        http.get<Blob>(url, { timeout: 500, responseType: 'blob' }).then((res) => {
+        http.get<Blob>(url, { timeout: 5000, responseType: 'blob' }).then((res) => {
             if (res.status !== 200) {
                 callback(new Error(`${url} load failed with status ${res.status}`), null)
                 return

@@ -47,6 +47,7 @@ export default class TilePicker {
         maxzoom?: number // data-source maxzoom
         renderWorldCopies?: boolean // enable warp
         isDEMTile?: boolean
+        roundZoom?: boolean
     }): Array<OverscaledTileID> {
         /////// Basic variables //////////////////////////////////////////////////
         const transform = this._map.transform
@@ -56,7 +57,7 @@ export default class TilePicker {
         const isDEMTile = options.isDEMTile
 
         const minTileZoom = options.minzoom || 0
-        const mapMaxTileZoom = Math.floor(mapZoom) // actually max zoom
+        const mapMaxTileZoom = options.roundZoom ? Math.round(mapZoom) : Math.floor(mapZoom)
         let maxTileZoom = mapMaxTileZoom // limited max zoom
 
         if (options.minzoom && maxTileZoom < options.minzoom) return []
@@ -264,7 +265,6 @@ export default class TilePicker {
             extendTileSet.add(parentOzTile.key)
             extendTiles.push(parentOzTile)
         }
-
         return extendTiles
     }
 }

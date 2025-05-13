@@ -11,6 +11,13 @@ mapDiv.style.zIndex = '1'
 mapDiv.id = 'map'
 document.body.appendChild(mapDiv)
 
+// Debug
+const container = document.createElement('div')
+container.style.position = 'fixed'
+container.style.top = '20px'
+container.style.left = '20px'
+document.body.appendChild(container)
+
 mapboxgl.accessToken = 'pk.eyJ1IjoieWNzb2t1IiwiYSI6ImNrenozdWdodDAza3EzY3BtdHh4cm5pangifQ.ZigfygDi2bK4HXY1pWh-wg'
 
 const empty = {
@@ -64,13 +71,15 @@ map.on('load', () => {
     const tileManager = new TileManager(map) // 'tile_manager'
     map.addLayer(tileManager)
 
-    const tileDrivenLayer = new TileDrivenLayer('dLayer', tileManager)
-    map.addLayer(tileDrivenLayer)
+    addContrastDom(tileManager)
+
+    // const tileDrivenLayer = new TileDrivenLayer('dLayer', tileManager)
+    // map.addLayer(tileDrivenLayer)
 
     // terrainTest(map)
     // addPlaceHolder(map)
 
-    new mapboxgl.Marker().setLngLat([120.2803920596891106, 34.3030449664098393])
+    // new mapboxgl.Marker().setLngLat([120.2803920596891106, 34.3030449664098393])
 })
 
 map.on('moveend', () => {
@@ -117,4 +126,49 @@ function addPlaceHolder(map: mapboxgl.Map) {
             'circle-color': 'red',
         },
     })
+}
+
+function addContrastDom(tileManager: TileManager) {
+    const domfrag = document.createDocumentFragment()
+
+    const button1 = document.createElement('button')
+    button1.innerText = 'mapbox-raster-layer'
+    button1.onclick = () => {
+        map.addLayer({
+            id: 'mapbox-raster-layer',
+            type: 'raster',
+            source: {
+                id: 'mapbox-raster-source',
+                type: 'raster',
+                tiles: ['https://webst01.is.autonavi.com/appmaptile?style=6&x={x}&y={y}&z={z}'],
+            },
+        })
+    }
+    domfrag.appendChild(button1)
+
+    const button2 = document.createElement('button')
+    button2.innerText = 'underaxe-raster-layer'
+    button2.onclick = () => {
+        const tileDrivenLayer = new TileDrivenLayer('dLayer', tileManager)
+        map.addLayer(tileDrivenLayer)
+    }
+    domfrag.appendChild(button2)
+
+    const button3 = document.createElement('button')
+    button3.innerText = 'remove-all'
+    button3.onclick = () => {
+        if (map.getLayer('dLayer')) {
+            map.removeLayer('dLayer')
+        }
+
+        if (map.getLayer('mapbox-raster-layer')) {
+            const layer = map.getLayer('mapbox-raster-layer')!
+            const source = layer.source
+            map.removeLayer('mapbox-raster-layer')
+            source && map.removeSource(source)
+        }
+    }
+    domfrag.appendChild(button3)
+
+    container.appendChild(domfrag)
 }

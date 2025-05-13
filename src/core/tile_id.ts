@@ -127,8 +127,8 @@ export class OverscaledTileID {
                 this.canonical.y,
             )
         } else {
+            if (this.canonical.z === 1) return null
             const parentZ = this.canonical.z - 1
-            if (parentZ < 0) return null
 
             return new OverscaledTileID(parentZ, this.wrap, parentZ, this.canonical.x >> 1, this.canonical.y >> 1)
         }
