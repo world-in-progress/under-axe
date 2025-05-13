@@ -101,26 +101,24 @@ export default class TileSource {
     abortTile(tile: Tile) {
         tile.unload()
         this.lruCache.abort(tile.id)
-
     }
 
     coveringTiles(): Tile[] {
         const coveringOZIDs = this._tileManager.coveringTiles
 
         // coveringOZIDs[0] : the nearest tile for camera
-        const nearestOZID = coveringOZIDs[0]; // 最近的焦点瓦片
+        const nearestOZID = coveringOZIDs[0] // 最近的焦点瓦片
 
         this.lruCache.keys.forEach((key) => {
-            const tile = this.lruCache.get<Tile>(key)!;
-            if (!tile) return;
+            const tile = this.lruCache.get<Tile>(key)!
+            if (!tile) return
 
-            const inView = coveringOZIDs.find(ozID => ozID.key === tile.overscaledTileID.key);
+            const inView = coveringOZIDs.find((ozID) => ozID.key === tile.overscaledTileID.key)
 
             if (!inView && shouldAbort(tile, nearestOZID)) {
-                this.abortTile(tile);
+                this.abortTile(tile)
             }
-
-        });
+        })
 
         const tiles: Tile[] = []
         for (const ozID of coveringOZIDs) {
